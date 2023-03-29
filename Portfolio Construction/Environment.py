@@ -1,97 +1,54 @@
 import gym
 from gym import spaces
 import numpy as np
-from scipy.stats import skew
-from scipy.stats import kurtosis as kurt
-import matplotlib.pyplot as plt
+
 
 class TradingEnvironment(gym.Env):
     """
     A simple trading environment of N assets whose returns are modeled by geometric brownian motion.
 
-    Parameters
-    ----------
-    S0 : float
-        Initial capital of the agent
-
-    N : int
-        Number of assets in the universe
-
-    min_drift : float
-        Lower bound of the drift of the assets
-
-    max_drift : float
-        Upper bound of the drift of the assets
-
-    min_volatility : float
-        Lower bound of the volatility of the assets
-
-    max_volatility : float
-        Upper bound of the volatility of the assets
-
-    T : int
-        Number of time steps per episode
-
-    H : int
-        Number of previous time steps to be accounted for in observations
-
     """
     def __init__(
-            self, S0=100_000, N=10, min_drift=-0.05, max_drift=0.05, min_volatility=0.05, 
-            max_volatility=0.25, T=252, H=20
+            self, 
+            initial_capital: float = 100_000, 
+            num_assets: int = 10,
+            maximal_time: int = 252,
+            hind_sight: int = 30,
+            investment_horizon: int = 30,       # number of days to hold the portfolio
+            transaction_cost: float = 0.001,    # transaction cost as a percentage of the transaction value
+            mu_mean: float = 0,                 # average drift of all the assets
+            mu_deviation: float = 0.2,          # deviation in the drift of the assets
+            sigma_mean: float = 0,              # average volatility of all the assets
+            sigma_deviation: float = 1,         # deviation in the volatility of the assets
             ):
         super(TradingEnvironment, self).__init__()
+        np.set_printoptions(suppress=True)
+
+        self.num_assets = num_assets
+        self.initial_capital = initial_capital
+        self.current_capital = initial_capital
+        self.transaction_cost = transaction_cost
+
+        self.maximal_time = maximal_time
+        self.hind_sight = hind_sight
+        self.current_time = self.hind_sight
+        self.investment_horizon = investment_horizon
+
+        self.current_weights = np.zeros(self.num_assets)
+        self.portfolio_returns = [0]
+        self.portfolio_values = [self.initial_capital]
+
+        self.mu_mean = mu_mean
+        self.mu_deviation = mu_deviation
+        self.sigma_mean = sigma_mean
+        self.sigma_deviation = sigma_deviation
         
-        self.N = N                              # number of assets in the universe
+        self._set_action_space()
+        self._set_observation_space()
 
-        self.min_drift = min_drift              # lower bound of the drift of the assets
-        self.max_drift = max_drift              # upper bound of the drift of the assets
-        self.min_volatility = min_volatility    # lower bound of the volatility of the assets
-        self.max_volatility = max_volatility    # upper bound of the volatility of the assets
-
-        self.T = T                              # maximal time
-        self.t = H                              # current time
-        self.H = H                              # how far back in time to look
-
-        self.S0 = S0                            # initial capital
-        self.St = S0                            # capital at time t
-        self.Wt = np.zeros(self.N)              # weights of the assets in the portfolio at time t (initially 0)
-
-        self.portfolio_returns = [0]            # list of portfolio returns (%) at each time step
-        self.portfolio_values = [S0]            # list of portfolio values ($) at each time step
-
-        # Initializing Action and Observation Spaces
-        self.set_action_space()
-        self.set_observation_space()
-
-        # Initializing the state
         self.reset()
 
-    def reset(self):
-        """
-        Resets the environment
-        
-        Parameters
-        ----------
-        None
-            
-        Returns
-        -------
-        tuple
-            (obs, info)
-
-        """
-        
-        self.t = self.H
-        self.St = self.S0
-        self.Wt = np.zeros(self.N)
-        self.portfolio_returns = [0]
-        self.portfolio_values = [self.S0]
-        self.simulate_market()
-        
-        return (self.state(), {})
-
-    def set_action_space(self):
+    def _set_action_space(self):
         """
         Sets the action space of the environment
 
@@ -105,9 +62,9 @@ class TradingEnvironment(gym.Env):
 
         """
 
-        self.action_space = spaces.Box(low=0, high=1, shape=(self.N,), dtype=np.float32)
+        self.action_space = spaces.Box(low=0, high=1, shape=(self.num_assets,), dtype=np.float32)
 
-    def set_observation_space(self):
+    def _set_observation_space(self):
         """
         Sets the observation space of the environment as an 5 x N array of floats 
         representing statistical measures of the last H returns of each asset:
@@ -126,15 +83,10 @@ class TradingEnvironment(gym.Env):
         None
 
         """
-        drifts = spaces.Box(low=-np.inf, high=np.inf, shape=(self.N,), dtype=np.float32)
-        volatilities = spaces.Box(low=0, high=np.inf, shape=(self.N,), dtype=np.float32)
-        variance = spaces.Box(low=0, high=np.inf, shape=(self.N,), dtype=np.float32)
-        skewness = spaces.Box(low=-np.inf, high=np.inf, shape=(self.N,), dtype=np.float32)
-        kurtosis = spaces.Box(low=-np.inf, high=np.inf, shape=(self.N,), dtype=np.float32)
         
-        self.observation_space = spaces.Tuple((drifts, volatilities, variance, skewness, kurtosis))
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(5, self.num_assets), dtype=np.float32)
 
-    def simulate_market(self):
+    def _simulate_market(self) -> None:
         """
         Simulates the market by generating random returns for each asset based on geometric Brownian motion
 
@@ -148,91 +100,38 @@ class TradingEnvironment(gym.Env):
 
         """
 
-
         # Generating random drifts and volatilities for each asset
-        self.drifts = np.random.uniform(self.min_drift, self.max_drift, self.N)
-        self.volatilities = np.random.uniform(self.min_volatility, self.max_volatility, self.N)
+        self.drifts = np.random.normal(self.mu_mean, self.mu_deviation, self.num_assets)
+        self.volatilities = np.random.normal(self.sigma_mean, self.sigma_deviation, self.num_assets)
 
         # Generating random returns for each asset based on geometric Brownian motion
-        asset_returns = np.zeros((self.T, self.N))
-        for i in range(self.N):
-            asset_returns[:,i] = 1 - np.exp((self.drifts[i] - 0.5 * self.volatilities[i]**2) + self.volatilities[i] * np.random.normal(0, 1, self.T))
+        normal_returns = np.random.normal(size=(self.maximal_time, self.num_assets))
+        asset_returns = np.exp(
+            (self.drifts - 0.5 * self.volatilities**2)[:, np.newaxis] * np.ones((self.maximal_time, self.num_assets)) + 
+            self.volatilities[:, np.newaxis] * normal_returns.T) - 1
 
         # Saving the returns as an attribute
         self.asset_returns = asset_returns
-        
-
-    def state(self):
+    
+    def _calculate_state_value(self) -> float:
         """
-        Returns the observation space
-
+        Calculates the value of the state
+        
         Parameters
         ----------
         None
-
+        
         Returns
         -------
-        tuple
-            (drifts, volatilities, variance, skewness, kurtosis)
+        state_value : float
+            the value of the state
         
         """
-
-        returns = self.asset_returns[self.t-self.H:self.t]
+        state_value = 0
         
-        drifts = returns.mean(axis=0).astype(np.float32)
-        volatilities = returns.std(axis=0).astype(np.float32)
-        variance = returns.var(axis=0).astype(np.float32)
-        skewness = skew(returns, axis=0).astype(np.float32)
-        kurtosis = kurt(returns, axis=0).astype(np.float32)
+        return state_value
 
-        return (drifts, volatilities, variance, skewness, kurtosis)
-    
-    def step(self, action):
-        """
-        Takes a step in the environment based on the agent taking an action
-        
-        Parameters
-        ----------
-        action : np array
-            The weights of the assets in the new portfolio
-            
-        Returns
-        -------
-        obs : tuple
-            the observation for time step t
-
-        reward : float
-            the reward for time step t
-
-        done : bool
-            whether the episode is over
-
-        info : dict
-            additional information
-
-        """
-
-        self.t += 1
-        
-        # calculate the returns at time t
-        returns = self.asset_returns[self.t]
-        
-        net_return = np.dot(action, returns)
-
-        # update the portfolio values
-        self.St = self.St * (1 + net_return)
-        self.Wt = action
-        self.portfolio_values.append(self.St)
-        self.portfolio_returns.append(net_return)
-        
-        if self.t + 1 == self.T:
-            done = True
-        else:
-            done = False
-        
-        return (self.state(), self.calculate_reward(), done, {})
-
-    def calculate_reward(self):
+    def _calculate_reward(self):
         """
         Returns the reward
         
@@ -246,14 +145,14 @@ class TradingEnvironment(gym.Env):
             the reward
         
         """
-        Returns, Risk, Sharpe, Sortino, MaxDD, VaR = self.calculte_portfolio_metrics()
+        Returns, Risk, Sharpe, Sortino, MaxDD, VaR = self._calculte_portfolio_metrics()
 
         reward = Returns + Sharpe + Sortino - Risk - MaxDD - VaR
 
         return reward
         
 
-    def calculte_portfolio_metrics(self):
+    def _calculte_portfolio_metrics(self):
         """
         Calculates the portfolio performance by the following metrics:
             - Return
@@ -283,6 +182,104 @@ class TradingEnvironment(gym.Env):
 
         return (net_return, risk, sharpe_ratio, sortino_ratio, maximum_drawdown, value_at_risk)
 
+    def state(self) -> tuple:
+        """
+        Returns the observation space
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        tuple
+            (drifts, volatilities, variance, skewness, kurtosis)
+        
+        """        
+        # Get the last H returns for each asset
+        returns = self.asset_returns[-self.hind_sight:, :]
+        
+        # Calculate the statistical measures
+        mean = np.mean(returns, axis=0)
+        std = np.std(returns, axis=0)
+        variance = np.var(returns, axis=0)
+        skewness = np.mean(((returns - mean) / std) ** 3, axis=0)
+        kurtosis = np.mean(((returns - mean) / std) ** 4, axis=0) - 3
+
+        return np.stack((mean, std, variance, skewness, kurtosis), axis=0)
+
+    def reset(self) -> tuple:
+        """
+        Resets the environment
+        
+        Parameters
+        ----------
+        None
+            
+        Returns
+        -------
+        tuple
+            (obs, info)
+
+        """
+        
+        self.current_time = self.hind_sight
+        self.current_capital = self.initial_capital
+        self.current_weights = np.zeros(self.num_assets)
+        self.portfolio_returns = [0]
+        self.portfolio_values = [self.initial_capital]
+        self._simulate_market()
+        
+        return (self.state(), {})
+    
+    def step(self, action: np.array) -> tuple:
+        """
+        Takes a step in the environment based on the agent taking an action
+        
+        Parameters
+        ----------
+        action : np array
+            The weights of the assets in the new portfolio
+            
+        Returns
+        -------
+        obs : tuple
+            the observation for time step t
+
+        reward : float
+            the reward for time step t
+
+        done : bool
+            whether the episode is over
+
+        info : dict
+            additional information
+
+        """
+
+        self.current_time += 1
+        
+        # calculate the returns at time t
+        returns = self.asset_returns[self.current_time]
+        
+        net_return = np.dot(action, returns)
+
+        # update the portfolio values
+        self.current_capital = self.current_capital * (1 + net_return)
+        self.current_weights = action
+        self.portfolio_values.append(self.current_capital)
+        self.portfolio_returns.append(net_return)
+        
+        resultant_state = self.state()
+
+        done = (self.current_time == self.maximal_time - 1)
+        
+        reward = self._calculate_reward()
+        
+        info = {}
+        
+        return (resultant_state, reward, done, info)
+    
     def render(self):
         """
         Renders the environment
@@ -299,7 +296,7 @@ class TradingEnvironment(gym.Env):
         pass
 
 
-env = TradingEnvironment(C=0)
+env = TradingEnvironment()
 while True:
     action = env.action_space.sample()
     obs, reward, done, info = env.step(action)
