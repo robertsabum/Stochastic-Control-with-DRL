@@ -39,8 +39,8 @@ class CityEnv(gym.Env):
 
         self._generator = Generator(PCG64())
 
-        self._generate_demands(lambda_mean, lambda_deviation)
-        self._generate_travel_times(
+        self._generate_demand_parameters(lambda_mean, lambda_deviation)
+        self._generate_travel_time_parameters(
             delta_mean, delta_deviation, 
             beta_mean, beta_deviation
         )
@@ -93,7 +93,7 @@ class CityEnv(gym.Env):
         """
         self.observation_space = spaces.Box(low=0, high=self.population, shape=(self.num_locations,))
 
-    def _generate_demands(self, lambda_mean: float, lambda_deviation: float) -> None:
+    def _generate_demand_parameters(self, lambda_mean: float, lambda_deviation: float) -> None:
         """
         Generates a matrix of demand between each pair of locations
         where each element (i, j) is a random number sampled from a normal distribution
@@ -117,7 +117,7 @@ class CityEnv(gym.Env):
         np.fill_diagonal(self.demand, 0)
         self.demand = np.clip(self.demand, 0.01, self.population)
 
-    def _generate_travel_times(self, delta_mean: float, delta_deviation: float, 
+    def _generate_travel_time_parameters(self, delta_mean: float, delta_deviation: float, 
                                beta_mean: float, beta_deviation: float) -> None:
         """
         Generates two N x N matrices of average travel times and travel time deviations
