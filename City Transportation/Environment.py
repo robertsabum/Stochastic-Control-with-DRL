@@ -21,7 +21,7 @@ class CityEnv(gym.Env):
         bus_cost: float = 1,
         maximal_time: int = 1440,       # 24 hours
         bus_capacity: int = 50,
-        lambda_mean: float = 0.25,      # Lambda being the average number of passengers wishing to travel between a pair of locations per time step
+        lambda_mean: float = 0.05,      # Lambda being the average number of passengers wishing to travel between a pair of locations per time step
         lambda_deviation: float = 0.2,
         delta_mean: float = 10,         # Delta being the average travel time between a pair of locations
         delta_deviation: float = 5,
