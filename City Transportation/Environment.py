@@ -11,7 +11,8 @@ class CityEnv(gym.Env):
     possible minimizing total waiting time from bus stop arrival to destination arrival as well as operating cost.
 
     TODO:
-        - Find way to limit the number of passengers in the system to the population size
+        - Find way to limit the number of passengers in the system to the population size 
+          (possibly by using a queue or scaling the demand matrix down as we approach the population size)
     """
 
     def __init__(
@@ -461,7 +462,7 @@ class CityEnv(gym.Env):
 
 
 env = CityEnv()
-env.simulate_passing_time(123.456)
+# env.simulate_passing_time(123.456)
 while True:
     observation, reward, done, info = env.step(np.random.randint(0, 10))
 
