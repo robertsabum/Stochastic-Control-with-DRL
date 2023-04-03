@@ -10,15 +10,12 @@ class CityEnv(gym.Env):
     A simple environment of a city with N locations and a single bus that aims to serve as many passengers as 
     possible minimizing total waiting time from bus stop arrival to destination arrival as well as operating cost.
 
-    TODO:
-        - Find way to limit the number of passengers in the system to the population size 
-          (possibly by using a queue or scaling the demand matrix down as we approach the population size)
     """
 
     def __init__(
         self,
         num_locations: int = 10,
-        population: int = 100,
+        population: int = 1000,
         bus_cost: float = 1,
         maximal_time: int = 1440,       # 24 hours
         bus_capacity: int = 50,
@@ -191,7 +188,9 @@ class CityEnv(gym.Env):
         
         """
 
-        arrivals = self._generator.poisson(self.demand * duration)
+        scale_factor = max(0, (1 - (self.passengers_in_transit / self.population)))
+        arrivals = self._generator.poisson(self.demand * duration * scale_factor)
+        total_new_passengers = sum(sum(arrivals))
 
         for origin in range(self.num_locations):    
             queue = [
@@ -201,7 +200,9 @@ class CityEnv(gym.Env):
                 ]
 
             np.random.shuffle(queue)                         
-            self.bus_stops[origin].extend(queue)             
+            self.bus_stops[origin].extend(queue)
+
+        self.passengers_in_transit += total_new_passengers   
 
     def _simulate_travel_times(self) -> np.ndarray:
         """
@@ -219,7 +220,7 @@ class CityEnv(gym.Env):
         """
 
         travel_times = self._generator.normal(self.average_travel_times, self.traffic_volatility)
-        np.clip(travel_times, 1, self.maximal_time)
+        travel_times = np.clip(travel_times, 1, 60)
 
         return travel_times
     
@@ -237,11 +238,16 @@ class CityEnv(gym.Env):
             The number of passengers picked up
         
         """
-        picked_up = self.bus_stops[self.bus_location][:self.bus_capacity - len(self.bus_passengers)]
-        self.bus_passengers.extend(picked_up)
-        self.bus_stops[self.bus_location] = self.bus_stops[self.bus_location][self.bus_capacity - len(self.bus_passengers):]
+        num_picked_up = 0
+        while len(self.bus_passengers) < self.bus_capacity:
+            try:
+                self.bus_passengers.append(self.bus_stops[self.bus_location].pop(0))
+                num_picked_up += 1
 
-        return len(picked_up)
+            except IndexError:
+                break
+    
+        return num_picked_up
 
     def _drop_off_passengers(self) -> int:
         """
@@ -260,9 +266,9 @@ class CityEnv(gym.Env):
         dropped_off = [passenger for passenger in self.bus_passengers if passenger['destination'] == self.bus_location]
         self.total_waiting_time += sum(self.current_time - passenger['origin_time'] for passenger in dropped_off)
         self.served_passengers += len(dropped_off)
+        self.passengers_in_transit -= len(dropped_off)
         
         self.bus_passengers = [passenger for passenger in self.bus_passengers if passenger['destination'] != self.bus_location]
-
         return len(dropped_off)
 
     def _drive_bus_to(self, destination: int) -> float:
@@ -318,17 +324,14 @@ class CityEnv(gym.Env):
         
         """
         total_waiting_time = 0
-        total_passengers = 0
 
         for bus_stop in self.bus_stops:
             total_waiting_time += sum(self.current_time - passenger['origin_time'] for passenger in bus_stop)
-            total_passengers += len(bus_stop)
 
         for passenger in self.bus_passengers:
             total_waiting_time += self.current_time - passenger['origin_time']
-            total_passengers += 1
 
-        return -1 * (total_waiting_time / total_passengers)
+        return -1 * (total_waiting_time / self.passengers_in_transit)
 
     def simulate_passing_time(self, duration: float = 1) -> None:
         """
@@ -376,7 +379,7 @@ class CityEnv(gym.Env):
         # Drive the bus to the action location
         travel_time = self._drive_bus_to(action)
         dropped_off = self._drop_off_passengers()
-        picked_up = self._pick_up_passengers()
+        num_picked_up = self._pick_up_passengers()
         self._simulate_passenger_arrivals(travel_time)
         self.current_time += travel_time
         self.served_passengers += dropped_off
@@ -394,7 +397,7 @@ class CityEnv(gym.Env):
         info = {
             'stopped at': action,
             'passengers_dropped_off': dropped_off,
-            'passengers_picked_up': picked_up,
+            'passengers_picked_up': num_picked_up,
             'total_passengers_serviced': self.served_passengers
             }
 
@@ -464,9 +467,9 @@ class CityEnv(gym.Env):
 env = CityEnv()
 # env.simulate_passing_time(123.456)
 while True:
-    observation, reward, done, info = env.step(np.random.randint(0, 10))
-
+    obs, rew, done, info = env.step(np.random.randint(0, env.num_locations-1))
+    print(rew, info)
     if done:
-        print(info)
-        env.render()
         break
+env.render()
+    
