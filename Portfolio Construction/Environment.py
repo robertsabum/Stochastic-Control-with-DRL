@@ -40,7 +40,7 @@ class TradingEnvironment(gym.Env):
 
         self.mean_asset_returns = np.random.uniform(min_drift, max_drift, num_assets)
         self.asset_volatilities = np.random.uniform(min_volatility, max_volatility, num_assets)
-        self.asset_prices = np.random.normal(mean_starting_price, std_starting_price, num_assets)
+        self.initial_asset_prices = np.random.normal(mean_starting_price, std_starting_price, num_assets)
 
         self._set_action_space()
         self._set_observation_space()
@@ -106,7 +106,7 @@ class TradingEnvironment(gym.Env):
             self.asset_volatilities * np.sqrt(1/self.period_length) * 
             np.random.normal(size=(self.maximal_time, self.num_assets))) - 1
         
-        self.asset_prices = np.cumprod(self.asset_returns + 1, axis=0) * self.asset_prices
+        self.asset_prices = np.cumprod(self.asset_returns + 1, axis=0) * self.initial_asset_prices
     
     def _asset_statistical_measures(self, time: int) -> tuple:
         """
