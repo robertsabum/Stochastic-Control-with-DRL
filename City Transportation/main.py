@@ -53,8 +53,8 @@ if __name__ == '__main__':
         scores.append(score)
         eps_history.append(agent.epsilon)
         avg_score = np.mean(scores[-100:])
-        print('episode ', i, 'score %.1f' % score, 'average score %.1f' % avg_score, 'epsilon %.2f' % agent.epsilon)
+        print('episode', i, 'score %.1f' % score, 'average score %.1f' % avg_score, 'epsilon %.2f' % agent.epsilon)
 
     x = [i+1 for i in range(n_runs)]
-    filename = 'bus_driver_performance.png'
+    filename = 'bus_driver_performance_2.png'
     plotLearning(x, scores, eps_history, filename)

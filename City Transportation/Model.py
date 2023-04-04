@@ -9,7 +9,7 @@ class DeepQNetwork(nn.Module):
     def __init__(
             self, 
             lr: float = 0.001,
-            input_dims: list = [10], 
+            input_dims: int = 10, 
             hidden_layer_1_dims: int = 256, 
             hidden_layer_2_dims: int = 256,
             n_actions: int = 10
@@ -19,7 +19,7 @@ class DeepQNetwork(nn.Module):
         self.hidden_layer_1_dims = hidden_layer_1_dims
         self.hidden_layer_2_dims = hidden_layer_2_dims
         self.n_actions = n_actions
-        self.hidden_layer_1 = nn.Linear(*self.input_dims, self.hidden_layer_1_dims)
+        self.hidden_layer_1 = nn.Linear(self.input_dims, self.hidden_layer_1_dims)
         self.hidden_layer_2 = nn.Linear(self.hidden_layer_1_dims, self.hidden_layer_2_dims)
         self.output_layer = nn.Linear(self.hidden_layer_2_dims, self.n_actions)
 
@@ -42,12 +42,12 @@ class BusDriver:
             gamma: float = 0.99, 
             epsilon: float = 1.0,
             lr: float = 0.001,   
-            input_dims: list = [10], 
+            input_dims: int = 10, 
             batch_size: int = 64, 
             n_actions: int = 10,
-            max_mem_size=100000, 
-            eps_end=0.05, 
-            eps_dec=5e-4
+            max_mem_size: int = 100000, 
+            eps_end: float = 0.05, 
+            eps_dec: float = 5e-4
             ):
         self.gamma = gamma
         self.epsilon = epsilon
@@ -80,7 +80,7 @@ class BusDriver:
 
     def choose_action(self, observation):
         if np.random.random() > self.epsilon:
-            state = T.tensor([observation]).to(self.Q_eval.device)
+            state = T.tensor(observation).to(self.Q_eval.device)
             actions = self.Q_eval.forward(state)
             action = T.argmax(actions).item()
         else:

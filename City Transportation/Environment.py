@@ -8,7 +8,7 @@ from numpy.random import Generator, PCG64
 class CityEnv(gym.Env):
     """
     A simple environment of a city with N locations and a single bus that aims to serve as many passengers as 
-    possible minimizing total waiting time from bus stop arrival to destination arrival as well as operating cost.
+    possible minimizing average waiting time from bus stop arrival to destination arrival.
 
     """
 
@@ -19,11 +19,11 @@ class CityEnv(gym.Env):
         bus_cost: float = 1,
         maximal_time: int = 1440,
         bus_capacity: int = 50,
-        lambda_mean: float = 0.00005,       # Lambda being the average number of passengers wishing to travel between a pair of locations per time step
+        lambda_mean: float = 0.00005,       # Lambda -> Average number of passengers wishing to travel between a pair of locations (per time step per person)
         lambda_deviation: float = 0.0002,
-        delta_mean: float = 10,             # Delta being the average travel time between a pair of locations
+        delta_mean: float = 10,             # Delta  -> Average travel time between a pair of locations
         delta_deviation: float = 5,
-        beta_mean: float = 0.5,             # Beta being the volatility in travel time between a pair of locations
+        beta_mean: float = 0.5,             # Beta   -> Volatility in travel time between a pair of locations
         beta_deviation: float = 0.1
     ):
         super(CityEnv, self).__init__()
@@ -35,16 +35,13 @@ class CityEnv(gym.Env):
         self.passengers_in_transit = 0
         self.bus_cost = bus_cost
 
-        self._generator = Generator(PCG64())
+        self.rng = Generator(PCG64())
 
         self._generate_demand_parameters(lambda_mean, lambda_deviation)
-        self._generate_travel_time_parameters(
-            delta_mean, delta_deviation, 
-            beta_mean, beta_deviation
-        )
+        self._generate_travel_time_parameters(delta_mean, delta_deviation, beta_mean, beta_deviation)
 
         self.bus_stops = [[] for _ in range(num_locations)]
-        self.bus_location = self._generator.integers(num_locations - 1)
+        self.bus_location = self.rng.integers(num_locations - 1)
         self.bus_capacity = bus_capacity
         self.bus_passengers = []
 
@@ -111,7 +108,7 @@ class CityEnv(gym.Env):
         None
         
         """
-        self.demand_matrix = self._generator.normal(lambda_mean, lambda_deviation, size=(self.num_locations, self.num_locations)) * self.population
+        self.demand_matrix = self.rng.normal(lambda_mean, lambda_deviation, size=(self.num_locations, self.num_locations)) * self.population
         np.fill_diagonal(self.demand_matrix, 0)
         self.demand_matrix = np.clip(self.demand_matrix, 0.01, self.population) 
 
@@ -141,11 +138,11 @@ class CityEnv(gym.Env):
         None
         
         """
-        self.average_travel_times = self._generator.normal(delta_mean, delta_deviation, size=(self.num_locations, self.num_locations))
+        self.average_travel_times = self.rng.normal(delta_mean, delta_deviation, size=(self.num_locations, self.num_locations))
         self.average_travel_times = np.clip(self.average_travel_times, 1, None)
         np.fill_diagonal(self.average_travel_times, 0)
 
-        self.traffic_volatility = self._generator.normal(beta_mean, beta_deviation, size=(self.num_locations, self.num_locations))
+        self.traffic_volatility = self.rng.normal(beta_mean, beta_deviation, size=(self.num_locations, self.num_locations))
         self.traffic_volatility = np.clip(self.traffic_volatility, 0.01, None)
         np.fill_diagonal(self.traffic_volatility, 0)
 
@@ -189,7 +186,7 @@ class CityEnv(gym.Env):
         """
 
         scale_factor = max(0, (1 - (self.passengers_in_transit / self.population)))
-        arrivals = self._generator.poisson(self.demand_matrix * duration * scale_factor)
+        arrivals = self.rng.poisson(self.demand_matrix * duration * scale_factor)
         total_new_passengers = sum(sum(arrivals))
 
         for origin in range(self.num_locations):    
@@ -219,7 +216,7 @@ class CityEnv(gym.Env):
 
         """
 
-        travel_time = self._generator.normal(self.average_travel_times[origin, destination], self.traffic_volatility[origin, destination])
+        travel_time = self.rng.normal(self.average_travel_times[origin, destination], self.traffic_volatility[origin, destination])
         travel_time = max(1, travel_time)
 
         return travel_time
@@ -383,7 +380,7 @@ class CityEnv(gym.Env):
 
         """
 
-        # Drive the bus to the action location
+        # Drive the bus to the desired location
         self._drive_bus_to(action)
         num_dropped_off = self._drop_off_passengers()
         num_picked_up = self._pick_up_passengers()
