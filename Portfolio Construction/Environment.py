@@ -353,8 +353,7 @@ if __name__ == "__main__":
     env = TradingEnvironment()
     state = env.state()
     while True:
-        action = np.ones(5) / 5
-        next_state, reward, done, info = env.step(action)
+        next_state, reward, done, info = env.step(np.ones(5) / 5)
         print("Info: {}".format(info))
 
         if done:
