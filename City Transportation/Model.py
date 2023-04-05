@@ -4,15 +4,14 @@ import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 
-
 class DeepQNetwork(nn.Module):
     def __init__(
             self, 
-            lr: float = 0.001,
-            input_dims: int = 10, 
-            hidden_layer_1_dims: int = 256, 
-            hidden_layer_2_dims: int = 256,
-            n_actions: int = 10
+            lr: float,
+            input_dims: int, 
+            hidden_layer_1_dims: int, 
+            hidden_layer_2_dims: int,
+            n_actions: int
         ):
         super(DeepQNetwork, self).__init__()
         self.input_dims = input_dims
@@ -42,7 +41,7 @@ class BusDriver:
             gamma: float = 0.99, 
             epsilon: float = 1.0,
             lr: float = 0.001,   
-            input_dims: int = 10, 
+            input_dims: int = 10*10, 
             batch_size: int = 64, 
             n_actions: int = 10,
             max_mem_size: int = 100000, 
@@ -61,9 +60,9 @@ class BusDriver:
         self.iter_cntr = 0
         self.replace_target = 100
 
-        self.Q_eval = DeepQNetwork(lr, n_actions=n_actions, input_dims=input_dims, hidden_layer_1_dims=256, hidden_layer_2_dims=256)
-        self.state_memory = np.zeros((self.mem_size, *input_dims), dtype=np.float32)
-        self.new_state_memory = np.zeros((self.mem_size, *input_dims),  dtype=np.float32)
+        self.Q_eval = DeepQNetwork(lr=lr, n_actions=n_actions, input_dims=input_dims, hidden_layer_1_dims=256, hidden_layer_2_dims=256)
+        self.state_memory = np.zeros((self.mem_size, input_dims), dtype=np.float32)
+        self.new_state_memory = np.zeros((self.mem_size, input_dims),  dtype=np.float32)
         self.action_memory = np.zeros(self.mem_size, dtype=np.int32)
         self.reward_memory = np.zeros(self.mem_size, dtype=np.float32)
         self.terminal_memory = np.zeros(self.mem_size, dtype=np.bool)
@@ -117,3 +116,6 @@ class BusDriver:
 
         self.iter_cntr += 1
         self.epsilon = self.epsilon - self.eps_dec if self.epsilon > self.eps_min else self.eps_min
+
+    def save_model(self):
+        T.save(self.Q_eval.state_dict(), 'model.pth')

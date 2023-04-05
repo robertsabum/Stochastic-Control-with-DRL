@@ -1,6 +1,7 @@
 import gym
 from gym import spaces
 import numpy as np
+from numpy.random import Generator, PCG64
 import matplotlib.pyplot as plt
 
 class TradingEnvironment(gym.Env):
@@ -25,29 +26,51 @@ class TradingEnvironment(gym.Env):
         super(TradingEnvironment, self).__init__()
         np.set_printoptions(suppress=True)
 
-        self.num_assets = num_assets
-        self.initial_capital = initial_capital
-        self.current_portfolio_value = initial_capital
-        self.transaction_cost = transaction_cost
+        self.__num_assets = num_assets
+        self.__initial_capital = initial_capital
+        self.__current_portfolio_value = initial_capital
+        self.__transaction_cost = transaction_cost
 
-        self.period_length = year_length
-        self.maximal_time = year_length * num_years
-        self.current_time = year_length
+        self.__period_length = year_length
+        self.__maximal_time = year_length * num_years
+        self.__current_time = year_length
 
-        self.current_weights = np.zeros(self.num_assets)
-        self.portfolio_returns = [0]
-        self.portfolio_values = [self.initial_capital]
+        self.__current_weights = np.zeros(num_assets)
+        self.__portfolio_returns = [0]
+        self.__portfolio_values = [initial_capital]
 
-        self.mean_asset_returns = np.random.uniform(min_drift, max_drift, num_assets)
-        self.asset_volatilities = np.random.uniform(min_volatility, max_volatility, num_assets)
-        self.initial_asset_prices = np.random.normal(mean_starting_price, std_starting_price, num_assets)
+        self.__rng = Generator(PCG64())
 
-        self._set_action_space()
-        self._set_observation_space()
+        self.mean_asset_returns = self.__rng.uniform(min_drift, max_drift, num_assets)
+        self.asset_volatilities = self.__rng.uniform(min_volatility, max_volatility, num_assets)
+        self.initial_asset_prices = self.__rng.normal(mean_starting_price, std_starting_price, num_assets)
+
+        self.__set_action_space()
+        self.__set_observation_space()
 
         self.reset()
 
-    def _set_action_space(self):
+    @property
+    def current_portfolio_value(self):
+        return self.__current_portfolio_value
+    
+    @property
+    def current_portfolio_return(self):
+        return self.__current_portfolio_value / self.__initial_capital - 1
+    
+    @property
+    def current_weights(self):
+        return self.__current_weights
+    
+    @property
+    def current_time(self):
+        return self.__current_time
+    
+    @property
+    def num_assets(self):
+        return self.__num_assets
+
+    def __set_action_space(self):
         """
         Sets the action space of the environment
 
@@ -61,9 +84,9 @@ class TradingEnvironment(gym.Env):
 
         """
 
-        self.action_space = spaces.Box(low=0, high=np.inf, shape=(self.num_assets,), dtype=np.float32)
+        self.action_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.__num_assets,), dtype=np.float32)
 
-    def _set_observation_space(self):
+    def __set_observation_space(self):
         """
         Sets the observation space of the environment as tuple containing:
             - the current set of weights
@@ -80,13 +103,13 @@ class TradingEnvironment(gym.Env):
 
         """
         
-        current_weights = spaces.Box(low=0, high=np.inf, shape=(self.num_assets,), dtype=np.float32)
-        mean_returns = spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_assets,), dtype=np.float32)
-        covariance_matrix = spaces.Box(low=-np.inf, high=np.inf, shape=(self.num_assets, self.num_assets), dtype=np.float32)
+        current_weights = spaces.Box(low=0, high=np.inf, shape=(self.__num_assets,), dtype=np.float32)
+        mean_returns = spaces.Box(low=-np.inf, high=np.inf, shape=(self.__num_assets,), dtype=np.float32)
+        covariance_matrix = spaces.Box(low=-np.inf, high=np.inf, shape=(self.__num_assets, self.__num_assets), dtype=np.float32)
 
         self.observation_space = spaces.Tuple((current_weights, mean_returns, covariance_matrix))
 
-    def _simulate_market(self) -> None:
+    def __simulate_market(self) -> None:
         """
         Simulates the market by generating random returns for each asset based on geometric Brownian motion
 
@@ -102,13 +125,13 @@ class TradingEnvironment(gym.Env):
 
         self.asset_returns = np.exp(
             (self.mean_asset_returns - 0.5 * self.asset_volatilities**2) * 
-            (1/self.period_length) + 
-            self.asset_volatilities * np.sqrt(1/self.period_length) * 
-            np.random.normal(size=(self.maximal_time, self.num_assets))) - 1
+            (1/self.__period_length) + 
+            self.asset_volatilities * np.sqrt(1/self.__period_length) * 
+            self.__rng.normal(size=(self.__maximal_time, self.__num_assets))) - 1
         
         self.asset_prices = np.cumprod(self.asset_returns + 1, axis=0) * self.initial_asset_prices
     
-    def _asset_statistical_measures(self, time: int) -> tuple:
+    def __asset_statistics(self, time: int) -> tuple:
         """
         Calculates the statistical measures of the assets
         
@@ -123,7 +146,7 @@ class TradingEnvironment(gym.Env):
             {mean_returns, volatilities, covariance_matrix, skewness, kurtosis}
         
         """
-        returns = self.asset_returns[time - self.period_length:time]
+        returns = self.asset_returns[time - self.__period_length:time]
         
         mean = np.mean(returns, axis=0)
         standard_deviation = np.std(returns, axis=0)
@@ -139,7 +162,7 @@ class TradingEnvironment(gym.Env):
             'covariance_matrix': covariance_matrix
         }
     
-    def _calculate_reward(self, action: np.ndarray) -> float:
+    def __calculate_reward(self, action: np.ndarray) -> float:
         """
         Calculates the reward of the state-action pair
         
@@ -154,12 +177,12 @@ class TradingEnvironment(gym.Env):
             the reward of the action pair
         
         """
-        stats = self._asset_statistical_measures(self.current_time)
-        reward = self.portfolio_returns[-1] + np.dot(stats['mean_returns'], action) - (1/2 * np.dot(action, np.dot(stats['covariance_matrix'], action))) 
+        stats = self.__asset_statistics(self.__current_time)
+        reward = self.__portfolio_returns[-1] + np.dot(stats['mean_returns'], action) - (1/2 * np.dot(action, np.dot(stats['covariance_matrix'], action))) 
         
         return reward
 
-    def _calculte_portfolio_metrics(self):
+    def __calculte_portfolio_metrics(self):
         """
         Calculates the portfolio performance by the following metrics:
             - Return
@@ -178,13 +201,57 @@ class TradingEnvironment(gym.Env):
             (return, risk, sharpe_ratio, maximum_drawdown, value_at_risk)
         
         """
-        portfolio_return = (self.current_portfolio_value / self.initial_capital) - 1 
-        risk = np.std(self.portfolio_returns)
-        sharpe_ratio = np.mean(self.portfolio_returns) / risk
-        maximum_drawdown = np.min((self.portfolio_values - np.maximum.accumulate(self.portfolio_values)) / np.maximum.accumulate(self.portfolio_values))
-        value_at_risk = np.percentile(self.portfolio_returns, 5)
+        portfolio_return = (self.__current_portfolio_value / self.__initial_capital) - 1 
+        risk = np.std(self.__portfolio_returns)
+        sharpe_ratio = np.mean(self.__portfolio_returns) / risk
+        maximum_drawdown = np.min((self.__portfolio_values - np.maximum.accumulate(self.__portfolio_values)) / np.maximum.accumulate(self.__portfolio_values))
+        value_at_risk = np.percentile(self.__portfolio_returns, 5)
 
         return (portfolio_return, risk, sharpe_ratio, maximum_drawdown, value_at_risk)
+    
+    def __render_terminal(self):
+        """
+        Renders the environment in the terminal
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        """
+        portfolio_return, risk, sharpe_ratio, maximum_drawdown, value_at_risk = self.__calculte_portfolio_metrics()
+        
+        print("=" * 50)
+        print("Current time: {}".format(self.__current_time - 251))
+        print("Current portfolio value: {}".format(self.__current_portfolio_value))
+        print("Current weights: {}".format(self.__current_weights))
+        print("Return\t: {}".format(portfolio_return))
+        print("Risk\t: {}".format(risk))
+        print("Sharpe\t: {}".format(sharpe_ratio))
+        print("Max DD\t: {}".format(maximum_drawdown))
+        print("VaR\t: {}".format(value_at_risk))
+        print("")
+
+    def __render_plot(self):
+        """
+        Renders the environment in a graph
+        
+        Parameters
+        ----------
+        None
+        
+        Returns
+        -------
+        None
+        """
+        plt.style.use('seaborn-v0_8-darkgrid')
+        plt.plot(self.__portfolio_values)
+        plt.title("Portfolio Value")
+        plt.xlabel("Time (days)")
+        plt.ylabel("Value ($)")
+        plt.show()
 
     def state(self) -> tuple:
         """
@@ -202,34 +269,10 @@ class TradingEnvironment(gym.Env):
         """        
 
         # Calculate the statistical measures
-        stats = self._asset_statistical_measures(self.current_time)
+        stats = self.__asset_statistics(self.__current_time)
 
-        return (self.current_weights, stats['mean_returns'], stats['covariance_matrix'])
+        return (self.__current_weights, stats['mean_returns'], stats['covariance_matrix'])
 
-    def reset(self) -> tuple:
-        """
-        Resets the environment
-        
-        Parameters
-        ----------
-        None
-            
-        Returns
-        -------
-        tuple
-            (obs, info)
-
-        """
-        
-        self.current_time = self.period_length
-        self.current_portfolio_value = self.initial_capital
-        self.current_weights = np.zeros(self.num_assets)
-        self.portfolio_returns = [0]
-        self.portfolio_values = [self.initial_capital]
-        self._simulate_market()
-        
-        return (self.state(), {})
-    
     def step(self, action: np.array) -> tuple:
         """
         Takes a step in the environment based on the agent taking an action
@@ -255,78 +298,58 @@ class TradingEnvironment(gym.Env):
 
         """
 
-        self.current_time += 1
+        self.__current_time += 1
         action /= np.sum(action)
         
         # calculate the returns at time t
-        days_returns = self.asset_returns[self.current_time]
-        transaction_cost = np.sum(np.abs(self.current_weights - action)) * self.transaction_cost
+        days_returns = self.asset_returns[self.__current_time]
+        transaction_cost = np.sum(np.abs(self.__current_weights - action)) * self.__transaction_cost
         weighted_return = np.dot(action, days_returns)
 
         net_return = weighted_return - transaction_cost
 
 
         # adjust weights to account for the changes in individual asset prices
-        self.current_weights = action * (days_returns + 1) / (weighted_return + 1)
+        self.__current_weights = action * (days_returns + 1) / (weighted_return + 1)
 
         # update the portfolio values
-        self.current_portfolio_value *= (1 + net_return)
-        self.portfolio_values.append(self.current_portfolio_value)
-        self.portfolio_returns.append(net_return)
+        self.__current_portfolio_value *= (1 + net_return)
+        self.__portfolio_values.append(self.__current_portfolio_value)
+        self.__portfolio_returns.append(net_return)
         
         next_state = self.state()
 
-        done = (self.current_time == self.maximal_time - 1)
+        done = (self.__current_time == self.__maximal_time - 1)
         
-        reward = self._calculate_reward(action)
+        reward = self.__calculate_reward(action)
 
-        info = {"return": net_return, "transaction_cost": transaction_cost * self.portfolio_values[-2], "reward": reward, "done": done}
+        info = {"return": net_return, "transaction_cost": transaction_cost * self.__portfolio_values[-2], "reward": reward, "done": done}
         
         return (next_state, reward, done, info)
-    
-    def _render_terminal(self):
-        """
-        Renders the environment in the terminal
-        
-        Parameters
-        ----------
-        None
-        
-        Returns
-        -------
-        None
-        """
-        portfolio_return, risk, sharpe_ratio, maximum_drawdown, value_at_risk = self._calculte_portfolio_metrics()
-        
-        print("=" * 50)
-        print("Current time: {}".format(self.current_time - 251))
-        print("Current portfolio value: {}".format(self.current_portfolio_value))
-        print("Current weights: {}".format(self.current_weights))
-        print("Return\t: {}".format(portfolio_return))
-        print("Risk\t: {}".format(risk))
-        print("Sharpe\t: {}".format(sharpe_ratio))
-        print("Max DD\t: {}".format(maximum_drawdown))
-        print("VaR\t: {}".format(value_at_risk))
-        print("")
 
-    def _render_plot(self):
+    def reset(self) -> tuple:
         """
-        Renders the environment in a graph
+        Resets the environment
         
         Parameters
         ----------
         None
-        
+            
         Returns
         -------
-        None
+        tuple
+            (obs, info)
+
         """
-        plt.style.use('seaborn-v0_8-darkgrid')
-        plt.plot(self.portfolio_values)
-        plt.title("Portfolio Value")
-        plt.xlabel("Time (days)")
-        plt.ylabel("Value ($)")
-        plt.show()
+        
+        self.__current_time = self.__period_length
+        self.__current_portfolio_value = self.__initial_capital
+        self.__current_weights = np.zeros(self.__num_assets)
+        self.__portfolio_returns = [0]
+        self.__portfolio_values = [self.__initial_capital]
+        self.__simulate_market()
+        
+        return (self.state(), {})
         
     def render(self, mode='terminal'):
         """
@@ -342,18 +365,18 @@ class TradingEnvironment(gym.Env):
         None
         """
         if mode == 'terminal':
-            self._render_terminal()
+            self.__render_terminal()
 
         elif mode == 'plot':
-            self._render_plot()
+            self.__render_plot()
 
 
 if __name__ == "__main__":
 
-    env = TradingEnvironment()
+    env = TradingEnvironment(num_assets=20)
     state = env.state()
     while True:
-        next_state, reward, done, info = env.step(np.ones(5) / 5)
+        next_state, reward, done, info = env.step(np.ones(env.num_assets) / env.num_assets)
         print("Info: {}".format(info))
 
         if done:

@@ -30,33 +30,34 @@ class CityEnv(gym.Env):
 
         np.set_printoptions(suppress=True)
 
-        self.num_locations = num_locations
-        self.population = population
-        self.passengers_in_transit = 0
-        self.bus_cost = bus_cost
+        self.__num_locations = num_locations
+        self.__population = population
+        self.__passengers_in_transit = 0
+        self.__bus_cost = bus_cost
 
-        self.rng = Generator(PCG64())
+        self.__rng = Generator(PCG64())
 
-        self._generate_demand_parameters(lambda_mean, lambda_deviation)
-        self._generate_travel_time_parameters(delta_mean, delta_deviation, beta_mean, beta_deviation)
+        self.__generate_demand_parameters(lambda_mean, lambda_deviation)
+        self.__generate_travel_time_parameters(delta_mean, delta_deviation, beta_mean, beta_deviation)
 
-        self.bus_stops = [[] for _ in range(num_locations)]
-        self.bus_location = self.rng.integers(num_locations - 1)
-        self.bus_capacity = bus_capacity
-        self.bus_passengers = []
+        self.__bus_stops = [[] for _ in range(num_locations)]
+        self.__bus_location = self.__rng.integers(num_locations - 1)
+        self.__bus_capacity = bus_capacity
+        self.__bus_passengers = []
+        self.__current_demand = np.zeros((num_locations, num_locations))
 
-        self.maximal_time = maximal_time
-        self.current_time = 0
-        self.total_waiting_time = 0
+        self.__maximal_time = maximal_time
+        self.__current_time = 0
+        self.__total_waiting_time = 0
 
-        self.served_passengers = 0
+        self.__served_passengers = 0
 
-        self._generate_action_space()
-        self._generate_observation_space()
+        self.__generate_action_space()
+        self.__generate_observation_space()
 
         self.reset()
 
-    def _generate_action_space(self) -> None:
+    def __generate_action_space(self) -> None:
         """
         Generates an action space for the environment where the agent can choose to drive
         the bus to any location
@@ -70,9 +71,9 @@ class CityEnv(gym.Env):
         None
 
         """
-        self.action_space = spaces.Discrete(self.num_locations)
+        self.action_space = spaces.Discrete(self.__num_locations)
 
-    def _generate_observation_space(self) -> None:
+    def __generate_observation_space(self) -> None:
         """
         Generates an observation space for the environment where the agent can observe
         the number of passengers waiting at each bus stop
@@ -86,9 +87,9 @@ class CityEnv(gym.Env):
         None
         
         """
-        self.observation_space = spaces.Box(low=0, high=self.population, shape=(self.num_locations,))
+        self.observation_space = spaces.Box(low=0, high=self.__population, shape=(self.__num_locations**2,))
 
-    def _generate_demand_parameters(self, lambda_mean: float, lambda_deviation: float) -> None:
+    def __generate_demand_parameters(self, lambda_mean: float, lambda_deviation: float) -> None:
         """
         Generates a matrix of demand between each pair of locations
         where each element (i, j) is a random number sampled from a normal distribution
@@ -108,11 +109,11 @@ class CityEnv(gym.Env):
         None
         
         """
-        self.demand_matrix = self.rng.normal(lambda_mean, lambda_deviation, size=(self.num_locations, self.num_locations)) * self.population
+        self.demand_matrix = self.__rng.normal(lambda_mean, lambda_deviation, size=(self.__num_locations, self.__num_locations)) * self.__population
         np.fill_diagonal(self.demand_matrix, 0)
-        self.demand_matrix = np.clip(self.demand_matrix, 0.01, self.population) 
+        self.demand_matrix = np.clip(self.demand_matrix, 0.01, self.__population) 
 
-    def _generate_travel_time_parameters(self, delta_mean: float, delta_deviation: float, 
+    def __generate_travel_time_parameters(self, delta_mean: float, delta_deviation: float, 
                                beta_mean: float, beta_deviation: float) -> None:
         """
         Generates two N x N matrices of average travel times and travel time deviations
@@ -138,15 +139,15 @@ class CityEnv(gym.Env):
         None
         
         """
-        self.average_travel_times = self.rng.normal(delta_mean, delta_deviation, size=(self.num_locations, self.num_locations))
+        self.average_travel_times = self.__rng.normal(delta_mean, delta_deviation, size=(self.__num_locations, self.__num_locations))
         self.average_travel_times = np.clip(self.average_travel_times, 1, None)
         np.fill_diagonal(self.average_travel_times, 0)
 
-        self.traffic_volatility = self.rng.normal(beta_mean, beta_deviation, size=(self.num_locations, self.num_locations))
+        self.traffic_volatility = self.__rng.normal(beta_mean, beta_deviation, size=(self.__num_locations, self.__num_locations))
         self.traffic_volatility = np.clip(self.traffic_volatility, 0.01, None)
         np.fill_diagonal(self.traffic_volatility, 0)
 
-    def _new_passenger(self, origin: int, destination: int) -> dict:
+    def __new_passenger(self, origin: int, destination: int) -> dict:
         """
         Creates a new passenger with an origin and destination
 
@@ -167,10 +168,10 @@ class CityEnv(gym.Env):
         return {
             'origin': origin,
             'destination': destination,
-            'origin_time': self.current_time,
+            'origin_time': self.__current_time,
         }
 
-    def _simulate_passenger_arrivals(self, duration: float) -> None:
+    def __simulate_passenger_arrivals(self, duration: float) -> None:
         """
         Simulates passenger arrivals at each bus stop
 
@@ -185,23 +186,24 @@ class CityEnv(gym.Env):
         
         """
 
-        scale_factor = max(0, (1 - (self.passengers_in_transit / self.population)))
-        arrivals = self.rng.poisson(self.demand_matrix * duration * scale_factor)
-        total_new_passengers = sum(sum(arrivals))
+        scale_factor = max(0, (1 - (self.__passengers_in_transit / self.__population)))
+        arrivals = self.__rng.poisson(self.demand_matrix * duration * scale_factor)
+        total__new_passengers = sum(sum(arrivals))
 
-        for origin in range(self.num_locations):    
+        for origin in range(self.__num_locations):    
             queue = [
-                self._new_passenger(origin, destination)     
-                for destination in range(self.num_locations) 
+                self.__new_passenger(origin, destination)
+                for destination in range(self.__num_locations)
                 for _ in range(arrivals[origin, destination])
                 ]
 
-            np.random.shuffle(queue)                         
-            self.bus_stops[origin].extend(queue)
+            np.random.shuffle(queue)
+            self.__bus_stops[origin].extend(queue)
+        
+        self.__current_demand += arrivals
+        self.__passengers_in_transit += total__new_passengers
 
-        self.passengers_in_transit += total_new_passengers   
-
-    def _simulate_travel_time(self, origin: int, destination: int) -> float:
+    def __simulate_travel_time(self, origin: int, destination: int) -> float:
         """
         Simulates travel times between each pair of locations
 
@@ -216,12 +218,12 @@ class CityEnv(gym.Env):
 
         """
 
-        travel_time = self.rng.normal(self.average_travel_times[origin, destination], self.traffic_volatility[origin, destination])
+        travel_time = self.__rng.normal(self.average_travel_times[origin, destination], self.traffic_volatility[origin, destination])
         travel_time = max(1, travel_time)
 
         return travel_time
     
-    def _pick_up_passengers(self) -> int:
+    def __pick_up_passengers(self) -> int:
         """
         Picks up passengers waiting at the bus stop and adds them to the bus
 
@@ -236,9 +238,9 @@ class CityEnv(gym.Env):
         
         """
         num_picked_up = 0
-        while len(self.bus_passengers) < self.bus_capacity:
+        while len(self.__bus_passengers) < self.__bus_capacity:
             try:
-                self.bus_passengers.append(self.bus_stops[self.bus_location].pop(0))
+                self.__bus_passengers.append(self.__bus_stops[self.__bus_location].pop(0))
                 num_picked_up += 1
 
             except IndexError:
@@ -246,7 +248,7 @@ class CityEnv(gym.Env):
     
         return num_picked_up
 
-    def _drop_off_passengers(self) -> int:
+    def __drop_off_passengers(self) -> int:
         """
         Drops off passengers at their destination and removes them from the bus
 
@@ -261,16 +263,17 @@ class CityEnv(gym.Env):
         
         """
         num_dropped_off = 0
-        for passenger in self.bus_passengers:
-            if passenger['destination'] == self.bus_location:
-                self.total_waiting_time += self.current_time - passenger['origin_time']
-                self.bus_passengers.remove(passenger)
+        for passenger in self.__bus_passengers:
+            if passenger['destination'] == self.__bus_location:
+                self.__total_waiting_time += self.__current_time - passenger['origin_time']
+                self.__bus_passengers.remove(passenger)
                 num_dropped_off += 1
-                self.served_passengers += 1
+                self.__served_passengers += 1
+                self.__current_demand[passenger['origin'], passenger['destination']] -= 1
 
         return num_dropped_off
 
-    def _drive_bus_to(self, destination: int) -> float:
+    def __drive_bus_to(self, destination: int) -> float:
         """
         Drives the bus to the destination
 
@@ -285,31 +288,11 @@ class CityEnv(gym.Env):
             The time it took to drive to the destination
         
         """
-        travel_time = self._simulate_travel_time(self.bus_location, destination)
+        travel_time = self.__simulate_travel_time(self.__bus_location, destination)
         self.simulate_passing_time(travel_time)
-        self.bus_location = destination
+        self.__bus_location = destination
 
         return travel_time
-
-    def state(self) -> np.ndarray:
-        """
-        Returns the state of the environment
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        np.ndarray
-            The state of the environment (number of passengers on bus going to each station)
-        
-        """
-        state = np.zeros(self.num_locations)
-        for passenger in self.bus_passengers:
-            state[passenger['destination']] += 1
-
-        return state
     
     def _calculate_state_value(self) -> float:
         """
@@ -329,13 +312,13 @@ class CityEnv(gym.Env):
         """
         total_waiting_time = 0
 
-        for bus_stop in self.bus_stops:
-            total_waiting_time += sum(self.current_time - passenger['origin_time'] for passenger in bus_stop)
+        for bus_stop in self.__bus_stops:
+            total_waiting_time += sum(self.__current_time - passenger['origin_time'] for passenger in bus_stop)
 
-        for passenger in self.bus_passengers:
-            total_waiting_time += self.current_time - passenger['origin_time']
+        for passenger in self.__bus_passengers:
+            total_waiting_time += self.__current_time - passenger['origin_time']
 
-        return -1 * (total_waiting_time / self.passengers_in_transit)
+        return -1 * (total_waiting_time / self.__passengers_in_transit)
 
     def simulate_passing_time(self, duration: float = 1) -> None:
         """
@@ -351,8 +334,30 @@ class CityEnv(gym.Env):
         None
         
         """
-        self._simulate_passenger_arrivals(duration)
-        self.current_time += duration
+        self.__simulate_passenger_arrivals(duration)
+        self.__current_time += duration
+    
+    def state(self) -> np.ndarray:
+        """
+        Returns the state of the environment
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        np.ndarray
+            The state of the environment (number of passengers on bus going to each station)
+        
+        """
+        # state = np.zeros(self.__num_locations)
+        # for passenger in self.__bus_passengers:
+        #     state[passenger['destination']] += 1
+
+        state = self.__current_demand.flatten()
+        
+        return state
     
     def step(self, action):
         """
@@ -380,13 +385,15 @@ class CityEnv(gym.Env):
 
         """
 
+        assert self.action_space.contains(action), f'{action} ({type(action)}) invalid'
+
         # Drive the bus to the desired location
-        self._drive_bus_to(action)
-        num_dropped_off = self._drop_off_passengers()
-        num_picked_up = self._pick_up_passengers()
+        self.__drive_bus_to(action)
+        num_dropped_off = self.__drop_off_passengers()
+        num_picked_up = self.__pick_up_passengers()
 
         # Check if the episode has ended
-        done = self.current_time >= self.maximal_time
+        done = self.__current_time >= self.__maximal_time
 
         # Generate observation
         observation = self.state()
@@ -399,7 +406,7 @@ class CityEnv(gym.Env):
             'stopped at': action,
             'passengers_dropped_off': num_dropped_off,
             'passengers_picked_up': num_picked_up,
-            'total_passengers_serviced': self.served_passengers
+            'total_passengers_serviced': self.__served_passengers
             }
 
         return observation, reward, done, info
@@ -418,13 +425,13 @@ class CityEnv(gym.Env):
             The initial observation of the environment
         """
 
-        self.bus_stops = [[] for _ in range(self.num_locations)]
-        self.bus_location = np.random.randint(0, self.num_locations-1)
-        self.bus_passengers = []
-        self.total_waiting_time = 0
-        self.current_time = 0
-        self.served_passengers = 0
-        self.passengers_in_transit = 0
+        self.__bus_stops = [[] for _ in range(self.__num_locations)]
+        self.__bus_location = np.random.randint(0, self.__num_locations-1)
+        self.__bus_passengers = []
+        self.__total_waiting_time = 0
+        self.__current_time = 0
+        self.__served_passengers = 0
+        self.__passengers_in_transit = 0
         
         return self.state()
 
@@ -443,11 +450,11 @@ class CityEnv(gym.Env):
 
         """
         
-        print(f'Current time: {self.current_time}')
-        print(f'Bus location: {self.bus_location}')
-        print(f'Bus passengers: {len(self.bus_passengers)}')
+        print(f'Current time: {self.__current_time}')
+        print(f'Bus location: {self.__bus_location}')
+        print(f'Bus passengers: {len(self.__bus_passengers)}')
         print("passengers waiting at each bus stop:")
-        for i, bus_stop in enumerate(self.bus_stops):
+        for i, bus_stop in enumerate(self.__bus_stops):
             print(f'Bus stop {i}: {len(bus_stop)}')
 
     def close(self):
