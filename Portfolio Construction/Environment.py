@@ -1,3 +1,4 @@
+import sys
 import gym
 from gym import spaces
 import numpy as np
@@ -202,8 +203,8 @@ class TradingEnvironment(gym.Env):
         
         """
         portfolio_return = (self.__current_portfolio_value / self.__initial_capital) - 1 
-        risk = np.std(self.__portfolio_returns)
-        sharpe_ratio = np.mean(self.__portfolio_returns) / risk
+        risk = np.std(self.__portfolio_returns) * np.sqrt(self.__current_time)
+        sharpe_ratio = np.mean(self.__portfolio_returns) / risk * self.__current_time
         maximum_drawdown = np.min((self.__portfolio_values - np.maximum.accumulate(self.__portfolio_values)) / np.maximum.accumulate(self.__portfolio_values))
         value_at_risk = np.percentile(self.__portfolio_returns, 5)
 
@@ -370,10 +371,25 @@ class TradingEnvironment(gym.Env):
         elif mode == 'plot':
             self.__render_plot()
 
+    def close(self):
+        """
+        Closes the environment
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        None
+
+        """
+        sys.exit(1)
+
 
 if __name__ == "__main__":
 
-    env = TradingEnvironment(num_assets=20)
+    env = TradingEnvironment(num_assets=5)
     state = env.state()
     while True:
         next_state, reward, done, info = env.step(np.ones(env.num_assets) / env.num_assets)
