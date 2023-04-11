@@ -58,14 +58,14 @@ class ReplayBuffer(object):
         return states, actions, rewards, states_, terminal
 
 class CriticNetwork(nn.Module):
-    def __init__(self, beta, input_dims, hidden_layer_1_dims, hidden_layer_2_dims, n_actions, name, chkpt_dir='tmp/ddpg'):
+    def __init__(self, beta, input_dims, hidden_layer_1_dims, hidden_layer_2_dims, n_actions, name, chkpt_dir='models'):
 
         super(CriticNetwork, self).__init__()
         self.input_dims = input_dims
         self.hidden_layer_1_dims = hidden_layer_1_dims
         self.hidden_layer_2_dims = hidden_layer_2_dims
         self.n_actions = n_actions
-        self.checkpoint_file = os.path.join(chkpt_dir,name+'_ddpg')
+        self.checkpoint_file = os.path.join(chkpt_dir, name)
 
         self.hidden_layer_1 = nn.Linear(self.input_dims, self.hidden_layer_1_dims)
         hidden_layer_1_weight_range = 1./np.sqrt(self.hidden_layer_1.weight.data.size()[0])
@@ -112,14 +112,14 @@ class CriticNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class ActorNetwork(nn.Module):
-    def __init__(self, alpha, input_dims, hidden_layer_1_dims, hidden_layer_2_dims, n_actions, name, chkpt_dir='tmp/ddpg'):
+    def __init__(self, alpha, input_dims, hidden_layer_1_dims, hidden_layer_2_dims, n_actions, name, chkpt_dir='models'):
 
         super(ActorNetwork, self).__init__()
         self.input_dims = input_dims
         self.hidden_layer_1_dims = hidden_layer_1_dims
         self.hidden_layer_2_dims = hidden_layer_2_dims
         self.n_actions = n_actions
-        self.checkpoint_file = os.path.join(chkpt_dir,name+'_ddpg')
+        self.checkpoint_file = os.path.join(chkpt_dir, name)
         self.hidden_layer_1 = nn.Linear(self.input_dims, self.hidden_layer_1_dims)
         f1 = 1./np.sqrt(self.hidden_layer_1.weight.data.size()[0])
         T.nn.init.uniform_(self.hidden_layer_1.weight.data, -f1, f1)
@@ -171,8 +171,8 @@ class PortfolioManager(object):
         self.actor = ActorNetwork(alpha, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Actor')
         self.critic = CriticNetwork(lr, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Critic')
 
-        self.target_actor = ActorNetwork(alpha, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='TargetActor')
-        self.target_critic = CriticNetwork(lr, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='TargetCritic')
+        self.target_actor = ActorNetwork(alpha, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Target_Actor')
+        self.target_critic = CriticNetwork(lr, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Target_Critic')
 
         self.noise = OUActionNoise(mu=np.zeros(n_actions))
 

@@ -22,7 +22,7 @@ def plotLearning(x, scores, epsilons, filename, lines=None):
     ax2.scatter(x, running_avg, color="C1")
     ax2.axes.get_xaxis().set_visible(False)
     ax2.yaxis.tick_right()
-    ax2.set_ylabel('Score', color="C1")
+    ax2.set_ylabel('Daily Passengers Served', color="C1")
     ax2.yaxis.set_label_position('right')
     ax2.tick_params(axis='y', colors="C1")
 
@@ -34,10 +34,10 @@ def plotLearning(x, scores, epsilons, filename, lines=None):
 
 if __name__ == '__main__':
     env = CityEnv()
-    agent = BusDriver()
+    agent = BusDriver(gamma=0.99, epsilon=1.0, lr=0.0001)
     scores = []
     eps_history = []
-    n_runs = 100
+    n_runs = 1000
     version = 2
 
     for i in range(n_runs):
@@ -57,11 +57,11 @@ if __name__ == '__main__':
         print('episode', i, 'score %.1f' % score, 'average score %.1f' % avg_score, 'epsilon %.2f' % agent.epsilon)
 
     x = [i+1 for i in range(n_runs)]
-    plot_file = 'BusDriver_v' + str(version) + '-plot.png'
+    plot_file = 'plots/BusDriver_v' + str(version) + '.png'
     plotLearning(x, scores, eps_history, plot_file)
 
-    model_file = 'BusDriver_v' + str(version) + '-model.pth'
+    model_file = 'models/BusDriver_v' + str(version) + '.pth'
     agent.save_model(model_file)
 
-    env_file = 'BusDriver_v' + str(version) + '-env.pkl'
+    env_file = 'envs/BusDriver_v' + str(version) + '.pkl'
     env.save(env_file)
