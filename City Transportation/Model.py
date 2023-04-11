@@ -40,8 +40,8 @@ class BusDriver:
             self, 
             gamma: float = 0.99, 
             epsilon: float = 1.0,
-            lr: float = 0.001,   
-            input_dims: int = 10*10, 
+            lr: float = 0.0001,
+            input_dims: int = 120, 
             batch_size: int = 64, 
             n_actions: int = 10,
             max_mem_size: int = 100000, 
@@ -117,5 +117,5 @@ class BusDriver:
         self.iter_cntr += 1
         self.epsilon = self.epsilon - self.eps_dec if self.epsilon > self.eps_min else self.eps_min
 
-    def save_model(self):
-        T.save(self.Q_eval.state_dict(), 'model.pth')
+    def save_model(self, path: str):
+        T.save(self.Q_eval.state_dict(), path)

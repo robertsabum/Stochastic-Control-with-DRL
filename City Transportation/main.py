@@ -38,6 +38,7 @@ if __name__ == '__main__':
     scores = []
     eps_history = []
     n_runs = 100
+    version = 2
 
     for i in range(n_runs):
         done = False
@@ -56,5 +57,11 @@ if __name__ == '__main__':
         print('episode', i, 'score %.1f' % score, 'average score %.1f' % avg_score, 'epsilon %.2f' % agent.epsilon)
 
     x = [i+1 for i in range(n_runs)]
-    filename = 'bus_driver_performance_2.png'
-    plotLearning(x, scores, eps_history, filename)
+    plot_file = 'BusDriver_v' + str(version) + '-plot.png'
+    plotLearning(x, scores, eps_history, plot_file)
+
+    model_file = 'BusDriver_v' + str(version) + '-model.pth'
+    agent.save_model(model_file)
+
+    env_file = 'BusDriver_v' + str(version) + '-env.pkl'
+    env.save(env_file)

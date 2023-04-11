@@ -1,3 +1,5 @@
+import pickle
+import random
 import sys
 import gym
 from gym import spaces
@@ -16,7 +18,6 @@ class CityEnv(gym.Env):
         self,
         num_locations: int = 10,
         population: int = 1000,
-        bus_cost: float = 1,
         maximal_time: int = 1440,
         bus_capacity: int = 50,
         lambda_mean: float = 0.00005,       # Lambda -> Average number of passengers wishing to travel between a pair of locations (per time step per person)
@@ -33,7 +34,6 @@ class CityEnv(gym.Env):
         self.__num_locations = num_locations
         self.__population = population
         self.__passengers_in_transit = 0
-        self.__bus_cost = bus_cost
 
         self.__rng = Generator(PCG64())
 
@@ -139,13 +139,13 @@ class CityEnv(gym.Env):
         None
         
         """
-        self.average_travel_times = self.__rng.normal(delta_mean, delta_deviation, size=(self.__num_locations, self.__num_locations))
-        self.average_travel_times = np.clip(self.average_travel_times, 1, None)
-        np.fill_diagonal(self.average_travel_times, 0)
+        self.__average_travel_times = self.__rng.normal(delta_mean, delta_deviation, size=(self.__num_locations, self.__num_locations))
+        self.__average_travel_times = np.clip(self.__average_travel_times, 1, None)
+        np.fill_diagonal(self.__average_travel_times, 0)
 
-        self.traffic_volatility = self.__rng.normal(beta_mean, beta_deviation, size=(self.__num_locations, self.__num_locations))
-        self.traffic_volatility = np.clip(self.traffic_volatility, 0.01, None)
-        np.fill_diagonal(self.traffic_volatility, 0)
+        self.__traffic_volatility = self.__rng.normal(beta_mean, beta_deviation, size=(self.__num_locations, self.__num_locations))
+        self.__traffic_volatility = np.clip(self.__traffic_volatility, 0.01, None)
+        np.fill_diagonal(self.__traffic_volatility, 0)
 
     def __new_passenger(self, origin: int, destination: int) -> dict:
         """
@@ -188,7 +188,6 @@ class CityEnv(gym.Env):
 
         scale_factor = max(0, (1 - (self.__passengers_in_transit / self.__population)))
         arrivals = self.__rng.poisson(self.demand_matrix * duration * scale_factor)
-        total__new_passengers = sum(sum(arrivals))
 
         for origin in range(self.__num_locations):    
             queue = [
@@ -201,7 +200,7 @@ class CityEnv(gym.Env):
             self.__bus_stops[origin].extend(queue)
         
         self.__current_demand += arrivals
-        self.__passengers_in_transit += total__new_passengers
+        self.__passengers_in_transit += sum(sum(arrivals))
 
     def __simulate_travel_time(self, origin: int, destination: int) -> float:
         """
@@ -218,10 +217,27 @@ class CityEnv(gym.Env):
 
         """
 
-        travel_time = self.__rng.normal(self.average_travel_times[origin, destination], self.traffic_volatility[origin, destination])
+        travel_time = self.__rng.normal(self.__average_travel_times[origin, destination], self.__traffic_volatility[origin, destination])
         travel_time = max(1, travel_time)
 
         return travel_time
+    
+    def __simulate_passing_time(self, duration: float = 1) -> None:
+        """
+        Simulates the passage of time in the environment
+
+        Parameters
+        ----------
+        duration : float
+            For how long the simulation should run
+
+        Returns
+        -------
+        None
+        
+        """
+        self.__simulate_passenger_arrivals(duration)
+        self.__current_time += duration
     
     def __pick_up_passengers(self) -> int:
         """
@@ -289,7 +305,7 @@ class CityEnv(gym.Env):
         
         """
         travel_time = self.__simulate_travel_time(self.__bus_location, destination)
-        self.simulate_passing_time(travel_time)
+        self.__simulate_passing_time(travel_time)
         self.__bus_location = destination
 
         return travel_time
@@ -320,23 +336,6 @@ class CityEnv(gym.Env):
 
         return -1 * (total_waiting_time / self.__passengers_in_transit)
 
-    def simulate_passing_time(self, duration: float = 1) -> None:
-        """
-        Simulates the passage of time in the environment
-
-        Parameters
-        ----------
-        duration : float
-            For how long the simulation should run
-
-        Returns
-        -------
-        None
-        
-        """
-        self.__simulate_passenger_arrivals(duration)
-        self.__current_time += duration
-    
     def state(self) -> np.ndarray:
         """
         Returns the state of the environment
@@ -348,14 +347,19 @@ class CityEnv(gym.Env):
         Returns
         -------
         np.ndarray
-            The state of the environment (number of passengers on bus going to each station)
+            The state of the environment (number of passengers waiting at each bus stop, 
+            number of passengers on the bus, approximate travel times between each pair of locations)
         
         """
-        # state = np.zeros(self.__num_locations)
-        # for passenger in self.__bus_passengers:
-        #     state[passenger['destination']] += 1
+        
 
-        state = self.__current_demand.flatten()
+        passengers_waiting = self.__current_demand.flatten()
+        passengers_on_bus = np.zeros(self.__num_locations)
+        for passenger in self.__bus_passengers:
+            passengers_on_bus[passenger['destination']] += 1
+        approximate_travel_times = self.__rng.normal(self.__average_travel_times[self.__bus_location], self.__traffic_volatility[self.__bus_location])
+
+        state = np.concatenate((passengers_waiting, passengers_on_bus, approximate_travel_times))
         
         return state
     
@@ -403,6 +407,7 @@ class CityEnv(gym.Env):
 
         # Generate info dictionary
         info = {
+            'current_time': self.__current_time,
             'stopped at': action,
             'passengers_dropped_off': num_dropped_off,
             'passengers_picked_up': num_picked_up,
@@ -471,4 +476,37 @@ class CityEnv(gym.Env):
 
         """
         sys.exit(1)
-    
+
+    def save(self, path: str):
+        """
+        Saves the environment
+
+        Parameters
+        ----------
+        path : str
+            The path to which the environment should be saved
+
+        Returns
+        -------
+        None
+
+        """
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+
+    def load(self, path: str):
+        """
+        Loads the environment
+
+        Parameters
+        ----------
+        path : str
+            The path from which the environment should be loaded
+
+        Returns
+        -------
+        None
+
+        """
+        with open(path, 'rb') as f:
+            return pickle.load(f)

@@ -1,3 +1,4 @@
+import pickle
 import sys
 import gym
 from gym import spaces
@@ -51,26 +52,6 @@ class TradingEnvironment(gym.Env):
 
         self.reset()
 
-    @property
-    def current_portfolio_value(self):
-        return self.__current_portfolio_value
-    
-    @property
-    def current_portfolio_return(self):
-        return self.__current_portfolio_value / self.__initial_capital - 1
-    
-    @property
-    def current_weights(self):
-        return self.__current_weights
-    
-    @property
-    def current_time(self):
-        return self.__current_time
-    
-    @property
-    def num_assets(self):
-        return self.__num_assets
-
     def __set_action_space(self):
         """
         Sets the action space of the environment
@@ -89,10 +70,10 @@ class TradingEnvironment(gym.Env):
 
     def __set_observation_space(self):
         """
-        Sets the observation space of the environment as tuple containing:
+        Sets the observation space of the environment as a vector containing:
             - the current set of weights
-            - the last investment horizon mean returns of the assets
-            - the last investment horizon covariance matrix of the assets
+            - mean returns of the assets
+            - flattened covariance matrix of the assets
 
         Parameters
         ----------
@@ -104,11 +85,8 @@ class TradingEnvironment(gym.Env):
 
         """
         
-        current_weights = spaces.Box(low=0, high=np.inf, shape=(self.__num_assets,), dtype=np.float32)
-        mean_returns = spaces.Box(low=-np.inf, high=np.inf, shape=(self.__num_assets,), dtype=np.float32)
-        covariance_matrix = spaces.Box(low=-np.inf, high=np.inf, shape=(self.__num_assets, self.__num_assets), dtype=np.float32)
-
-        self.observation_space = spaces.Tuple((current_weights, mean_returns, covariance_matrix))
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(self.__num_assets * 2 + self.__num_assets**2,), dtype=np.float32)
+        
 
     def __simulate_market(self) -> None:
         """
@@ -176,10 +154,11 @@ class TradingEnvironment(gym.Env):
         -------
         reward : float
             the reward of the action pair
+            reward = return - riskyness of the portfolio
         
         """
         stats = self.__asset_statistics(self.__current_time)
-        reward = self.__portfolio_returns[-1] + np.dot(stats['mean_returns'], action) - (1/2 * np.dot(action, np.dot(stats['covariance_matrix'], action))) 
+        reward = self.__portfolio_returns[-1] - (1/2 * np.dot(action, np.dot(stats['covariance_matrix'], action)))
         
         return reward
 
@@ -271,9 +250,9 @@ class TradingEnvironment(gym.Env):
 
         # Calculate the statistical measures
         stats = self.__asset_statistics(self.__current_time)
-
-        return (self.__current_weights, stats['mean_returns'], stats['covariance_matrix'])
-
+        state = np.concatenate((self.__current_weights, stats['mean_returns'], stats['covariance_matrix'].flatten()))
+        return state
+    
     def step(self, action: np.array) -> tuple:
         """
         Takes a step in the environment based on the agent taking an action
@@ -324,7 +303,12 @@ class TradingEnvironment(gym.Env):
         
         reward = self.__calculate_reward(action)
 
-        info = {"return": net_return, "transaction_cost": transaction_cost * self.__portfolio_values[-2], "reward": reward, "done": done}
+        info = {
+            "return": round(net_return, 4),
+            "transaction_cost": round(transaction_cost * self.__portfolio_values[-2], 4),
+            "reward": round(reward, 4),
+            "done": done
+            }
         
         return (next_state, reward, done, info)
 
@@ -350,7 +334,7 @@ class TradingEnvironment(gym.Env):
         self.__portfolio_values = [self.__initial_capital]
         self.__simulate_market()
         
-        return (self.state(), {})
+        return self.state()
         
     def render(self, mode='terminal'):
         """
@@ -386,13 +370,47 @@ class TradingEnvironment(gym.Env):
         """
         sys.exit(1)
 
+    def save(self, path: str):
+        """
+        Saves the environment
+
+        Parameters
+        ----------
+        path : str
+            The path to which the environment should be saved
+
+        Returns
+        -------
+        None
+
+        """
+        with open(path, 'wb') as f:
+            pickle.dump(self, f)
+
+    def load(self, path: str):
+        """
+        Loads the environment
+
+        Parameters
+        ----------
+        path : str
+            The path from which the environment should be loaded
+
+        Returns
+        -------
+        None
+
+        """
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+
 
 if __name__ == "__main__":
 
-    env = TradingEnvironment(num_assets=5)
+    env = TradingEnvironment()
     state = env.state()
     while True:
-        next_state, reward, done, info = env.step(np.ones(env.num_assets) / env.num_assets)
+        next_state, reward, done, info = env.step(np.array([0.2, 0.2, 0.2, 0.2, 0.2]))
         print("Info: {}".format(info))
 
         if done:

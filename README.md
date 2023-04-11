@@ -32,12 +32,6 @@ The second problem we explore is urban transportation planning, which involves o
 uncirtain demand and traffic conditions. The goal of the agent is to serve as many passengers as possible while minimizing the average 
 waiting time. Here we use a Deep Q Network approach to train the agent to select the optimal route for the bus.
 
-#### Stochastic Game Strategy
-
-The third problem we explore is stochastic game strategy, which involves developing a strategy for playing a game with uncertain outcomes. 
-We use DRL to learn the optimal strategy for playing a three-card poker game showcasing a self play strategy where the agent learns by playing
-against previous versions of itself. The agent learns to make the optimal decisions that maximize winnings based on the current state of the game.
-
 The code in this repository requires the following dependencies:
 
     Python 3.7 or later
