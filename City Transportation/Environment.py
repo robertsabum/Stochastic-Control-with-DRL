@@ -1,5 +1,4 @@
 import pickle
-import random
 import sys
 import gym
 from gym import spaces
