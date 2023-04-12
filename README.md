@@ -19,29 +19,16 @@ and the neural network is trained to predict the best action to take in a given 
 a reward signal from the environment for every action it takes, and the neural network is trained to maximize 
 the cumulative reward over time.
 
-#### Asset Portfolio Construction
-
-The first problem we explore is asset portfolio construction, which is the process of selecting a optimal weights for a portfolio 
-of assets that maximizes returns while minimizing risk. Given that the action space is continuous, we implemented a 
-Deep Deterministic Polict Gradient (DDPG) model to learn the optimal allocation of assets in a portfolio based on simulated historical 
-data generated randomly with geometric brownian motion.
-
 #### Urban Transportation Planning
 
-The second problem we explore is urban transportation planning, which involves optimizing the path of a bus through a busy city with 
+The first problem we explore is urban transportation planning, which involves optimizing the path of a bus through a busy city with 
 uncirtain demand and traffic conditions. The goal of the agent is to serve as many passengers as possible while minimizing the average 
-waiting time. Here we use a Deep Q Network approach to train the agent to select the optimal route for the bus.
+waiting time. Here we use a Deep Q Network approach to train the agent to learn the optimal policy mapping city demand and traffic observations
+to possible locations the bus may drive to.
 
-The code in this repository requires the following dependencies:
+#### Asset Portfolio Construction
 
-    Python 3.7 or later
-    PyTorch 1.0 or later
-    NumPy
-    Pandas
-    Matplotlib
-
-## Conclusion
-
-This research paper demonstrates the effectiveness of DRL for solving stochastic control problems in a variety of domains. 
-By combining reinforcement learning with deep neural networks, DRL provides a powerful tool for learning optimal control 
-policies directly from experience.
+The second problem we explore is asset portfolio construction, which is the process of selecting a optimal weights for a portfolio 
+of assets that maximizes returns while minimizing risk. Given that the action space is continuous, we implemented a 
+Deep Deterministic Polict Gradient (DDPG) model to learn the optimal policy to select asset weights based on observed historical statistical 
+measures of each asset.
