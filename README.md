@@ -32,3 +32,9 @@ The second problem we explore is asset portfolio construction, which is the proc
 of assets that maximizes returns while minimizing risk. Given that the action space is continuous, we implemented a 
 Deep Deterministic Polict Gradient (DDPG) model to learn the optimal policy to select asset weights based on observed historical statistical 
 measures of each asset.
+
+## Conclusion
+
+This research paper demonstrates the effectiveness of DRL for solving stochastic control problems in a variety of domains. 
+By combining reinforcement learning with deep neural networks, DRL provides a powerful tool for learning optimal control 
+policies directly from experience.
