@@ -34,10 +34,10 @@ def plotLearning(x, scores, epsilons, filename, lines=None):
 
 if __name__ == '__main__':
     env = CityEnv()
-    agent = BusDriver(gamma=0.99, epsilon=1.0, lr=0.0001)
+    agent = BusDriver(gamma=0.99, epsilon=1.0, lr=0.001)
     scores = []
     eps_history = []
-    n_runs = 1000
+    n_runs = 256
     version = 2
 
     for i in range(n_runs):

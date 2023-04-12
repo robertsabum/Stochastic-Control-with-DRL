@@ -22,7 +22,7 @@ if __name__ == '__main__':
     env = TradingEnvironment()
     agent = PortfolioManager(alpha=0.000025, tau=0.001, lr=0.00025)
     scores = []
-    n_runs = 1000
+    n_runs = 1
     version = 1
 
     # agent.load_models()
