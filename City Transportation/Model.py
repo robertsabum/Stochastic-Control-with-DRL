@@ -40,13 +40,13 @@ class BusDriver:
             self, 
             gamma: float = 0.99, 
             epsilon: float = 1.0,
-            lr: float = 0.0001,
-            input_dims: int = 120, 
+            lr: float = 0.001,
+            input_dims: int = 110, 
             batch_size: int = 64, 
             n_actions: int = 10,
             max_mem_size: int = 100000, 
             eps_end: float = 0.05, 
-            eps_dec: float = 5e-4
+            eps_dec: float = 1e-5
             ):
         self.gamma = gamma
         self.epsilon = epsilon
@@ -115,7 +115,7 @@ class BusDriver:
         self.Q_eval.optimizer.step()
 
         self.iter_cntr += 1
-        self.epsilon = self.epsilon - self.eps_dec if self.epsilon > self.eps_min else self.eps_min
+        self.epsilon = 1 / np.exp(self.iter_cntr * self.eps_dec) if self.epsilon > self.eps_min else self.eps_min
 
     def save_model(self, path: str):
         T.save(self.Q_eval.state_dict(), path)

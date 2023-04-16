@@ -19,13 +19,14 @@ class CityEnv(gym.Env):
         num_locations: int = 10,
         population: int = 1000,
         maximal_time: int = 1440,
-        bus_capacity: int = 150,
-        lambda_mean: float = 0.00005,       # Lambda -> Average number of passengers wishing to travel between a pair of locations (per time step per person)
-        lambda_deviation: float = 0.0002,
+        bus_capacity: int = 50,
+        lambda_min: float = 0.01,           # Lambda -> Average number of passengers wishing to travel between a pair of locations (per time step per person)
+        lambda_max: float = 0.10,
         delta_mean: float = 10,             # Delta  -> Average travel time between a pair of locations
         delta_deviation: float = 5,
         beta_mean: float = 0.5,             # Beta   -> Volatility in travel time between a pair of locations
-        beta_deviation: float = 0.1
+        beta_deviation: float = 0.1,
+        seed: int = 1234
     ):
         super(CityEnv, self).__init__()
 
@@ -35,10 +36,10 @@ class CityEnv(gym.Env):
         self.__population = population
         self.__passengers_in_transit = 0
 
-        self.__rng = Generator(PCG64())
-
-        self.__generate_demand_parameters(lambda_mean, lambda_deviation)
+        self.__rng = Generator(PCG64(seed))
+        self.__generate_demand_parameters(lambda_min, lambda_max)
         self.__generate_travel_time_parameters(delta_mean, delta_deviation, beta_mean, beta_deviation)
+        self.__rng = Generator(PCG64())
 
         self.__bus_stops = [[] for _ in range(num_locations)]
         self.__bus_location = self.__rng.integers(num_locations - 1)
@@ -89,7 +90,7 @@ class CityEnv(gym.Env):
         """
         self.observation_space = spaces.Box(low=0, high=self.__population, shape=(self.__num_locations**2,))
 
-    def __generate_demand_parameters(self, lambda_mean: float, lambda_deviation: float) -> None:
+    def __generate_demand_parameters(self, lambda_min: float, lambda_max: float) -> None:
         """
         Generates a matrix of demand between each pair of locations
         where each element (i, j) is a random number sampled from a normal distribution
@@ -109,9 +110,10 @@ class CityEnv(gym.Env):
         None
         
         """
-        self.demand_matrix = self.__rng.normal(lambda_mean, lambda_deviation, size=(self.__num_locations, self.__num_locations)) * self.__population
+        self.demand_matrix = self.__rng.uniform(lambda_min, lambda_max, size=(self.__num_locations, self.__num_locations))
         np.fill_diagonal(self.demand_matrix, 0)
-        self.demand_matrix = np.clip(self.demand_matrix, 0.01, self.__population) 
+        self.demand_matrix = np.clip(self.demand_matrix, 0.01, self.__population)
+
 
     def __generate_travel_time_parameters(self, delta_mean: float, delta_deviation: float, 
                                beta_mean: float, beta_deviation: float) -> None:
@@ -347,9 +349,8 @@ class CityEnv(gym.Env):
         passengers_on_bus = np.zeros(self.__num_locations)
         for passenger in self.__bus_passengers:
             passengers_on_bus[passenger['destination']] += 1
-        approximate_travel_times = self.__rng.normal(self.__average_travel_times[self.__bus_location], self.__traffic_volatility[self.__bus_location])
 
-        state = np.concatenate((passengers_waiting, passengers_on_bus, approximate_travel_times))
+        state = np.concatenate((passengers_waiting, passengers_on_bus))
         
         return state
     

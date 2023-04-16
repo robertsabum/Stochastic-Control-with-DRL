@@ -162,7 +162,7 @@ class ActorNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class PortfolioManager(object):
-    def __init__(self, alpha, lr, tau, gamma=0.99, input_dims=35, n_actions=5, max_size=1000000, layer1_size=400, layer2_size=300, batch_size=64):
+    def __init__(self, alpha, lr, tau, gamma=0.99, input_dims=25, n_actions=5, max_size=1000000, layer1_size=400, layer2_size=300, batch_size=64):
         self.gamma = gamma
         self.tau = tau
         self.memory = ReplayBuffer(max_size, input_dims, n_actions)
