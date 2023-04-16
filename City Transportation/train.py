@@ -9,7 +9,7 @@ def plotLearning(x, scores, epsilons, filename, lines=None):
     ax2 = fig.add_subplot(111, label="2", frame_on=False)
 
     ax.plot(x, epsilons, color="C0")
-    ax.set_xlabel("Training Steps", color="C0")
+    ax.set_xlabel("Episode", color="C0")
     ax.set_ylabel("Epsilon", color="C0")
     ax.tick_params(axis='x', colors="C0")
     ax.tick_params(axis='y', colors="C0")
@@ -19,10 +19,10 @@ def plotLearning(x, scores, epsilons, filename, lines=None):
     for t in range(N):
         running_avg[t] = np.mean(scores[max(0, t-100):(t+1)])
 
-    ax2.scatter(x, running_avg, color="C1")
+    ax2.plot(x, running_avg, color="C1")
     ax2.axes.get_xaxis().set_visible(False)
     ax2.yaxis.tick_right()
-    ax2.set_ylabel('Daily Passengers Served', color="C1")
+    ax2.set_ylabel('Average Waiting Time', color="C1")
     ax2.yaxis.set_label_position('right')
     ax2.tick_params(axis='y', colors="C1")
 
@@ -30,15 +30,15 @@ def plotLearning(x, scores, epsilons, filename, lines=None):
         for l in lines:
             ax2.axhline(y=l, color='r', linestyle='-')
 
-    plt.savefig(filename)
+    plt.savefig(filename, dpi=1200)
 
 if __name__ == '__main__':
     env = CityEnv()
     agent = BusDriver(gamma=0.99, epsilon=1.0, lr=0.001)
     scores = []
     eps_history = []
-    n_runs = 256
-    version = 2
+    n_runs = 10000
+    version = 4
 
     for i in range(n_runs):
         done = False
@@ -51,10 +51,10 @@ if __name__ == '__main__':
             agent.store_transition(observation, action, reward, observation_, done)
             agent.learn()
             observation = observation_
-        scores.append(score)
+        scores.append(-score)
         eps_history.append(agent.epsilon)
         avg_score = np.mean(scores[-100:])
-        print('episode', i, 'score %.1f' % score, 'average score %.1f' % avg_score, 'epsilon %.2f' % agent.epsilon)
+        print(f'episode {i}, average waiting time {-score}, average {avg_score}, epsilon {agent.epsilon}')
 
     x = [i+1 for i in range(n_runs)]
     plot_file = 'plots/BusDriver_v' + str(version) + '.png'

@@ -12,8 +12,8 @@ def plotLearning(scores, filename, x=None, window=5):
     if x is None:
         x = [i+1 for i in range(N)]
     
-    plt.ylabel('Score')       
-    plt.xlabel('Year')                     
+    plt.ylabel('Score')
+    plt.xlabel('Episode')       
     plt.plot(x, running_avg)
     plt.savefig(filename)
 
@@ -22,10 +22,10 @@ if __name__ == '__main__':
     env = TradingEnvironment()
     agent = PortfolioManager(alpha=0.000025, tau=0.001, lr=0.00025)
     scores = []
-    n_runs = 1
+    n_runs = 1000
     version = 1
 
-    # agent.load_models()
+    agent.load_models()
     np.random.seed(0)
 
     score_history = []
@@ -42,18 +42,19 @@ if __name__ == '__main__':
             obs = new_state
 
         score_history.append(score)
-        env.render()
 
         if i % 25 == 0:
            agent.save_models()
 
-        print('episode', i, 'score %.1f' % score, 'average score %.1f' % np.mean(score_history[-100:]))
+        if i % 100 == 0:
+            env = TradingEnvironment()
+
+        print(f'episode {i} score {score} average score {np.mean(score_history[-100:])}')
+        env.render()
 
     agent.save_models()
 
     x = [i+1 for i in range(n_runs)]
     plot_file = 'plots/PortfolioManager_v' + str(version) + '.png'
-    plotLearning(x, score_history, plot_file)
+    plotLearning(score_history, plot_file)
     
-    env_file = 'envs/PortfolioManager_v' + str(version) + '.pkl'
-    env.save(env_file)

@@ -1,4 +1,5 @@
 import pickle
+import random
 import sys
 import gym
 from gym import spaces
@@ -18,7 +19,7 @@ class CityEnv(gym.Env):
         num_locations: int = 10,
         population: int = 1000,
         maximal_time: int = 1440,
-        bus_capacity: int = 50,
+        bus_capacity: int = 150,
         lambda_mean: float = 0.00005,       # Lambda -> Average number of passengers wishing to travel between a pair of locations (per time step per person)
         lambda_deviation: float = 0.0002,
         delta_mean: float = 10,             # Delta  -> Average travel time between a pair of locations
@@ -47,8 +48,8 @@ class CityEnv(gym.Env):
 
         self.__maximal_time = maximal_time
         self.__current_time = 0
-        self.__total_waiting_time = 0
 
+        self.__total_waiting_time = 0
         self.__served_passengers = 0
 
         self.__generate_action_space()
@@ -309,11 +310,9 @@ class CityEnv(gym.Env):
 
         return travel_time
     
-    def _calculate_state_value(self) -> float:
+    def _calculate_episode_performance(self) -> float:
         """
-        Calculates the value of the state looking at every passenger on the 
-        bus and every passenger waiting at each bus stop and calculating on average
-        how long has everybody waited
+        Calculates the performance of the agent over the course of the episode
 
         Parameters
         ----------
@@ -322,18 +321,10 @@ class CityEnv(gym.Env):
         Returns
         -------
         float
-            The value of the state (average waiting time of every passenger both waiting and on the bus)
-        
+            The performance of the agent over the course of the episode (Average waiting time)
+
         """
-        total_waiting_time = 0
-
-        for bus_stop in self.__bus_stops:
-            total_waiting_time += sum(self.__current_time - passenger['origin_time'] for passenger in bus_stop)
-
-        for passenger in self.__bus_passengers:
-            total_waiting_time += self.__current_time - passenger['origin_time']
-
-        return -1 * (total_waiting_time / self.__passengers_in_transit)
+        return -1 * (self.__total_waiting_time / self.__served_passengers)
 
     def state(self) -> np.ndarray:
         """
@@ -402,7 +393,7 @@ class CityEnv(gym.Env):
         observation = self.state()
 
         # Generate reward
-        reward = num_dropped_off
+        reward = self._calculate_episode_performance() if done else 0
 
         # Generate info dictionary
         info = {
@@ -509,3 +500,15 @@ class CityEnv(gym.Env):
         """
         with open(path, 'rb') as f:
             return pickle.load(f)
+
+# env = CityEnv()
+
+# while True:
+#     action = random.randint(0, 9)
+#     observation, reward, done, info = env.step(action)
+#     print(reward, info)
+
+#     if done:
+#         break
+
+# env.render()

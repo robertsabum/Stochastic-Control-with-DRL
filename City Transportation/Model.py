@@ -46,7 +46,7 @@ class BusDriver:
             n_actions: int = 10,
             max_mem_size: int = 100000, 
             eps_end: float = 0.05, 
-            eps_dec: float = 5e-5
+            eps_dec: float = 5e-4
             ):
         self.gamma = gamma
         self.epsilon = epsilon
@@ -65,7 +65,7 @@ class BusDriver:
         self.new_state_memory = np.zeros((self.mem_size, input_dims),  dtype=np.float32)
         self.action_memory = np.zeros(self.mem_size, dtype=np.int32)
         self.reward_memory = np.zeros(self.mem_size, dtype=np.float32)
-        self.terminal_memory = np.zeros(self.mem_size, dtype=np.bool)
+        self.terminal_memory = np.zeros(self.mem_size, dtype=np.bool_)
 
     def store_transition(self, state, action, reward, state_, terminal):
         index = self.mem_cntr % self.mem_size
