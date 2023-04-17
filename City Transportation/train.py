@@ -22,13 +22,15 @@ def plotLearning(x, scores, epsilons, filename, lines=None):
     ax2.plot(x, running_avg, color="C1")
     ax2.axes.get_xaxis().set_visible(False)
     ax2.yaxis.tick_right()
-    ax2.set_ylabel('Average Waiting Time', color="C1")
+    ax2.set_ylabel('Served Passengers', color="C1")
     ax2.yaxis.set_label_position('right')
     ax2.tick_params(axis='y', colors="C1")
 
     if lines is not None:
         for l in lines:
             ax2.axhline(y=l, color='r', linestyle='-')
+
+    plt.title(f'Bus Driver performance over {N} episodes')
 
     plt.savefig(filename, dpi=1200)
 
@@ -38,7 +40,9 @@ if __name__ == '__main__':
     scores = []
     eps_history = []
     n_runs = 10000
-    version = 4
+    version = 5
+    
+    agent.load_model('models/BusDriver_v4.pth')
 
     for i in range(n_runs):
         done = False
@@ -51,10 +55,10 @@ if __name__ == '__main__':
             agent.store_transition(observation, action, reward, observation_, done)
             agent.learn()
             observation = observation_
-        scores.append(-score)
+        scores.append(score)
         eps_history.append(agent.epsilon)
         avg_score = np.mean(scores[-100:])
-        print(f'episode {i}, average waiting time {-score}, average {avg_score}, epsilon {agent.epsilon}')
+        print(f'episode {i}, score {score}, average score {avg_score}, epsilon {agent.epsilon}')
 
     x = [i+1 for i in range(n_runs)]
     plot_file = 'plots/BusDriver_v' + str(version) + '.png'

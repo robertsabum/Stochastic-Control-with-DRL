@@ -20,12 +20,12 @@ class CityEnv(gym.Env):
         population: int = 1000,
         maximal_time: int = 1440,
         bus_capacity: int = 50,
-        lambda_min: float = 0.01,           # Lambda -> Average number of passengers wishing to travel between a pair of locations (per time step per person)
+        lambda_min: float = 0.01,       # Lambda -> Average number of passengers wishing to travel between a pair of locations (per time step per person)
         lambda_max: float = 0.10,
-        delta_mean: float = 10,             # Delta  -> Average travel time between a pair of locations
-        delta_deviation: float = 5,
-        beta_mean: float = 0.5,             # Beta   -> Volatility in travel time between a pair of locations
-        beta_deviation: float = 0.1,
+        delta_min: float = 5,           # Delta  -> Average travel time between a pair of locations
+        delta_max: float = 10,
+        beta_min: float = 0,            # Beta   -> Volatility in travel time between a pair of locations
+        beta_max: float = 5,
         seed: int = 1234
     ):
         super(CityEnv, self).__init__()
@@ -38,7 +38,7 @@ class CityEnv(gym.Env):
 
         self.__rng = Generator(PCG64(seed))
         self.__generate_demand_parameters(lambda_min, lambda_max)
-        self.__generate_travel_time_parameters(delta_mean, delta_deviation, beta_mean, beta_deviation)
+        self.__generate_travel_time_parameters(delta_min, delta_max, beta_min, beta_max)
         self.__rng = Generator(PCG64())
 
         self.__bus_stops = [[] for _ in range(num_locations)]
@@ -112,11 +112,9 @@ class CityEnv(gym.Env):
         """
         self.demand_matrix = self.__rng.uniform(lambda_min, lambda_max, size=(self.__num_locations, self.__num_locations))
         np.fill_diagonal(self.demand_matrix, 0)
-        self.demand_matrix = np.clip(self.demand_matrix, 0.01, self.__population)
 
 
-    def __generate_travel_time_parameters(self, delta_mean: float, delta_deviation: float, 
-                               beta_mean: float, beta_deviation: float) -> None:
+    def __generate_travel_time_parameters(self, delta_min: float, delta_max: float, beta_min: float, beta_max: float) -> None:
         """
         Generates two N x N matrices of average travel times and travel time deviations
         respectively between each pair of locations where each element (i, j) is a random 
@@ -124,29 +122,27 @@ class CityEnv(gym.Env):
 
         Parameters
         ----------
-        delta_mean : float
-            The average delta value (delta -> average travel time)
+        delta_min : float
+            The minimum average travel time between a pair of locations
 
-        delta_deviation : float
-            The standard deviation of the delta values
+        delta_max : float
+            The maximum average travel time between a pair of locations
 
-        beta_mean : float
-            The average beta value (beta -> travel time volatility)
+        beta_min : float
+            The minimum travel time deviation between a pair of locations
 
-        beta_deviation : float
-            The standard deviation of the beta values
-
+        beta_max : float
+            The maximum travel time deviation between a pair of locations
+        
         Returns
         -------
         None
         
         """
-        self.__average_travel_times = self.__rng.normal(delta_mean, delta_deviation, size=(self.__num_locations, self.__num_locations))
-        self.__average_travel_times = np.clip(self.__average_travel_times, 1, None)
+        self.__average_travel_times = self.__rng.uniform(delta_min, delta_max, size=(self.__num_locations, self.__num_locations))
         np.fill_diagonal(self.__average_travel_times, 0)
 
-        self.__traffic_volatility = self.__rng.normal(beta_mean, beta_deviation, size=(self.__num_locations, self.__num_locations))
-        self.__traffic_volatility = np.clip(self.__traffic_volatility, 0.01, None)
+        self.__traffic_volatility = self.__rng.uniform(beta_min, beta_max, size=(self.__num_locations, self.__num_locations))
         np.fill_diagonal(self.__traffic_volatility, 0)
 
     def __new_passenger(self, origin: int, destination: int) -> dict:
@@ -224,7 +220,7 @@ class CityEnv(gym.Env):
 
         return travel_time
     
-    def __simulate_passing_time(self, duration: float = 1) -> None:
+    def __simulate_passing_time(self, duration) -> None:
         """
         Simulates the passage of time in the environment
 
@@ -288,6 +284,7 @@ class CityEnv(gym.Env):
                 num_dropped_off += 1
                 self.__served_passengers += 1
                 self.__current_demand[passenger['origin'], passenger['destination']] -= 1
+                self.__passengers_in_transit -= 1
 
         return num_dropped_off
 
@@ -380,8 +377,6 @@ class CityEnv(gym.Env):
 
         """
 
-        assert self.action_space.contains(action), f'{action} ({type(action)}) invalid'
-
         # Drive the bus to the desired location
         self.__drive_bus_to(action)
         num_dropped_off = self.__drop_off_passengers()
@@ -394,7 +389,7 @@ class CityEnv(gym.Env):
         observation = self.state()
 
         # Generate reward
-        reward = self._calculate_episode_performance() if done else 0
+        reward = num_dropped_off
 
         # Generate info dictionary
         info = {
@@ -437,8 +432,7 @@ class CityEnv(gym.Env):
 
         Parameters
         ----------
-        mode : str
-            The mode in which to render the environment
+        None
 
         Returns
         -------

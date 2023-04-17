@@ -126,7 +126,7 @@ class TradingEnvironment(gym.Env):
         self.__universe_history.add(str(universe))
         self.__current_universe = universe
 
-    def __asset_statistics(self, time: int) -> tuple:
+    def __asset_statistics(self) -> tuple:
         """
         Calculates the statistical measures of the assets
         
@@ -141,18 +141,20 @@ class TradingEnvironment(gym.Env):
             {mean_returns, volatilities, skewness, kurtosis}
         
         """
-        returns = self.__asset_returns[self.__current_universe].iloc[time - self.__hind_sight:time].values
+        returns = self.__asset_returns[self.__current_universe].iloc[self.__current_time - self.__hind_sight:self.__current_time].values
         
         mean = np.mean(returns, axis=0)
         standard_deviation = np.std(returns, axis=0)
         skewness = (1 / (standard_deviation**3)) * np.sum((returns - mean)**3, axis=0)
         kurtosis = (1 / (standard_deviation**4)) * np.sum((returns - mean)**4, axis=0)
+        covariance_matrix = np.cov(returns, rowvar=False)
 
         return {
             'mean_returns': mean,
             'volatilities': standard_deviation,
             'skewness': skewness,
-            'kurtosis': kurtosis
+            'kurtosis': kurtosis,
+            'covariance_matrix': covariance_matrix
         }
 
     def __calculte_portfolio_metrics(self):
@@ -243,7 +245,7 @@ class TradingEnvironment(gym.Env):
         """        
 
         # Calculate the statistical measures
-        stats = self.__asset_statistics(self.__current_time)
+        stats = self.__asset_statistics()
         state = np.concatenate((self.__current_weights, stats['mean_returns'], stats['volatilities'], stats['skewness'], stats['kurtosis']))
         return state
     
@@ -295,7 +297,8 @@ class TradingEnvironment(gym.Env):
 
         done = (self.__current_time == self.__maximal_time - 1)
         
-        reward = net_return
+        statistics = self.__asset_statistics()
+        reward = net_return - 0.5 * np.dot(np.dot(action, statistics["covariance_matrix"]), action)
 
         info = {
             "return": round(net_return, 4),

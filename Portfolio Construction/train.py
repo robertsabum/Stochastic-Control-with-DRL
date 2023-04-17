@@ -20,12 +20,15 @@ def plotLearning(scores, filename, x=None, window=5):
 
 if __name__ == '__main__':
     env = TradingEnvironment()
-    agent = PortfolioManager(alpha=0.000025, tau=0.001, lr=0.00025)
+    agent = PortfolioManager(actor_lr=0.00001, critic_lr=0.00005, tau=0.001)
     scores = []
-    n_runs = 100
+    n_runs = 10000
     version = 1
 
     # agent.load_models()
+    # # load score history
+    # score_history = np.load('score_history.npy', allow_pickle=True).tolist()
+
     np.random.seed(0)
 
     score_history = []
@@ -44,10 +47,10 @@ if __name__ == '__main__':
         score_history.append(score)
 
         if i % 25 == 0:
-           agent.save_models()
+            agent.save_models()
+            np.save('score_history.npy', score_history)
 
         print(f'episode {i} score {score} average score {np.mean(score_history[-100:])}')
-        env.render()
 
     agent.save_models()
 

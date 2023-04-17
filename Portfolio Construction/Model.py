@@ -58,7 +58,7 @@ class ReplayBuffer(object):
         return states, actions, rewards, states_, terminal
 
 class CriticNetwork(nn.Module):
-    def __init__(self, beta, input_dims, hidden_layer_1_dims, hidden_layer_2_dims, n_actions, name, chkpt_dir='models'):
+    def __init__(self, lr, input_dims, hidden_layer_1_dims, hidden_layer_2_dims, n_actions, name, chkpt_dir='models'):
 
         super(CriticNetwork, self).__init__()
         self.input_dims = input_dims
@@ -85,7 +85,7 @@ class CriticNetwork(nn.Module):
         T.nn.init.uniform_(self.q.weight.data, -action_value_weight_range, action_value_weight_range)
         T.nn.init.uniform_(self.q.bias.data, -action_value_weight_range, action_value_weight_range)
 
-        self.optimizer = optim.Adam(self.parameters(), lr=beta)
+        self.optimizer = optim.Adam(self.parameters(), lr=lr)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
 
         self.to(self.device)
@@ -112,7 +112,7 @@ class CriticNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class ActorNetwork(nn.Module):
-    def __init__(self, alpha, input_dims, hidden_layer_1_dims, hidden_layer_2_dims, n_actions, name, chkpt_dir='models'):
+    def __init__(self, lr, input_dims, hidden_layer_1_dims, hidden_layer_2_dims, n_actions, name, chkpt_dir='models'):
 
         super(ActorNetwork, self).__init__()
         self.input_dims = input_dims
@@ -137,7 +137,7 @@ class ActorNetwork(nn.Module):
         T.nn.init.uniform_(self.mu.weight.data, -action_value_weight_range, action_value_weight_range)
         T.nn.init.uniform_(self.mu.bias.data, -action_value_weight_range, action_value_weight_range)
 
-        self.optimizer = optim.Adam(self.parameters(), lr=alpha)
+        self.optimizer = optim.Adam(self.parameters(), lr=lr)
         self.device = T.device('cuda:0' if T.cuda.is_available() else 'cpu')
 
         self.to(self.device)
@@ -162,17 +162,17 @@ class ActorNetwork(nn.Module):
         self.load_state_dict(T.load(self.checkpoint_file))
 
 class PortfolioManager(object):
-    def __init__(self, alpha, lr, tau, gamma=0.99, input_dims=25, n_actions=5, max_size=1000000, layer1_size=400, layer2_size=300, batch_size=64):
+    def __init__(self, actor_lr, critic_lr, tau, gamma=1.00, input_dims=25, n_actions=5, max_size=1000000, layer1_size=512, layer2_size=512, batch_size=64):
         self.gamma = gamma
         self.tau = tau
         self.memory = ReplayBuffer(max_size, input_dims, n_actions)
         self.batch_size = batch_size
 
-        self.actor = ActorNetwork(alpha, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Actor')
-        self.critic = CriticNetwork(lr, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Critic')
+        self.actor = ActorNetwork(actor_lr, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Actor')
+        self.critic = CriticNetwork(critic_lr, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Critic')
 
-        self.target_actor = ActorNetwork(alpha, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Target_Actor')
-        self.target_critic = CriticNetwork(lr, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Target_Critic')
+        self.target_actor = ActorNetwork(actor_lr, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Target_Actor')
+        self.target_critic = CriticNetwork(critic_lr, input_dims, layer1_size, layer2_size, n_actions=n_actions, name='Target_Critic')
 
         self.noise = OUActionNoise(mu=np.zeros(n_actions))
 

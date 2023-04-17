@@ -119,3 +119,6 @@ class BusDriver:
 
     def save_model(self, path: str):
         T.save(self.Q_eval.state_dict(), path)
+
+    def load_model(self, path: str):
+        self.Q_eval.load_state_dict(T.load(path))
