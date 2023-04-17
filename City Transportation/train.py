@@ -3,32 +3,26 @@ from Model import BusDriver
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plotLearning(x, scores, epsilons, filename, lines=None):
+def plotLearning(scores, epsilons, filename, lines=None):
+    N = len(scores)
     fig = plt.figure()
     ax = fig.add_subplot(111, label="1")
     ax2 = fig.add_subplot(111, label="2", frame_on=False)
 
-    ax.plot(x, epsilons, color="C0")
+    ax.plot(range(N), epsilons, color="C0")
     ax.set_xlabel("Episode", color="C0")
     ax.set_ylabel("Epsilon", color="C0")
     ax.tick_params(axis='x', colors="C0")
     ax.tick_params(axis='y', colors="C0")
 
-    N = len(scores)
-    running_avg = np.empty(N)
-    for t in range(N):
-        running_avg[t] = np.mean(scores[max(0, t-100):(t+1)])
 
-    ax2.plot(x, running_avg, color="C1")
+    ax2.plot(range(N), scores, color="C1")
     ax2.axes.get_xaxis().set_visible(False)
     ax2.yaxis.tick_right()
-    ax2.set_ylabel('Served Passengers', color="C1")
+    ax2.set_ylabel('Average Waiting Time', color="C1")
     ax2.yaxis.set_label_position('right')
     ax2.tick_params(axis='y', colors="C1")
 
-    if lines is not None:
-        for l in lines:
-            ax2.axhline(y=l, color='r', linestyle='-')
 
     plt.title(f'Bus Driver performance over {N} episodes')
 
@@ -41,8 +35,6 @@ if __name__ == '__main__':
     eps_history = []
     n_runs = 10000
     version = 5
-    
-    agent.load_model('models/BusDriver_v4.pth')
 
     for i in range(n_runs):
         done = False
@@ -60,12 +52,8 @@ if __name__ == '__main__':
         avg_score = np.mean(scores[-100:])
         print(f'episode {i}, score {score}, average score {avg_score}, epsilon {agent.epsilon}')
 
-    x = [i+1 for i in range(n_runs)]
     plot_file = 'plots/BusDriver_v' + str(version) + '.png'
-    plotLearning(x, scores, eps_history, plot_file)
+    plotLearning(scores, eps_history, plot_file)
 
     model_file = 'models/BusDriver_v' + str(version) + '.pth'
     agent.save_model(model_file)
-
-    env_file = 'envs/BusDriver_v' + str(version) + '.pkl'
-    env.save(env_file)

@@ -3,18 +3,29 @@ from Model import PortfolioManager
 from Environment import TradingEnvironment
 import numpy as np
 
-def plotLearning(scores, filename, x=None, window=5):   
-    N = len(scores)
-    running_avg = np.empty(N)
-    for t in range(N):
-        running_avg[t] = np.mean(scores[max(0, t-window):(t+1)])
+def plotLearning(returns, risks, filename):
+    N = len(returns)
+    fig = plt.figure()
+    ax = fig.add_subplot(111, label="1")
+    ax2 = fig.add_subplot(111, label="2", frame_on=False)
 
-    if x is None:
-        x = [i+1 for i in range(N)]
-    
-    plt.ylabel('Score')
-    plt.xlabel('Episode')
-    plt.plot(x, running_avg)
+    ax.plot(range(N), risks, color="C0")
+    ax.set_xlabel("Episode", color="C0")
+    ax.set_ylabel("Annualized Volatility", color="C0")
+    ax.tick_params(axis='x', colors="C0")
+    ax.tick_params(axis='y', colors="C0")
+
+
+    ax2.plot(range(N), returns, color="C1")
+    ax2.axes.get_xaxis().set_visible(False)
+    ax2.yaxis.tick_right()
+    ax2.set_ylabel('10 year Returns', color="C1")
+    ax2.yaxis.set_label_position('right')
+    ax2.tick_params(axis='y', colors="C1")
+
+
+    plt.title(f'Portfolio Manager performance over {N} episodes')
+
     plt.savefig(filename, dpi=1200)
 
 
@@ -22,12 +33,12 @@ if __name__ == '__main__':
     env = TradingEnvironment()
     agent = PortfolioManager(actor_lr=0.00001, critic_lr=0.00005, tau=0.001)
     scores = []
+    returns = []
+    risks = []
     n_runs = 10000
     version = 1
 
-    # agent.load_models()
-    # # load score history
-    # score_history = np.load('score_history.npy', allow_pickle=True).tolist()
+    agent.load_models()
 
     np.random.seed(0)
 
@@ -45,10 +56,11 @@ if __name__ == '__main__':
             obs = new_state
 
         score_history.append(score)
+        returns.append(env.net_return)
+        risks.append(env.risk)
 
         if i % 25 == 0:
             agent.save_models()
-            np.save('score_history.npy', score_history)
 
         print(f'episode {i} score {score} average score {np.mean(score_history[-100:])}')
 
@@ -60,5 +72,5 @@ if __name__ == '__main__':
 
     plot_file = 'plots/PortfolioManager_v' + str(version) + '.png'
     
-    plotLearning(score_history, plot_file)
+    plotLearning(returns, risks, plot_file)
     

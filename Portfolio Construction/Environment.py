@@ -10,7 +10,7 @@ import yfinance as yf
 
 class TradingEnvironment(gym.Env):
     """
-    A simple trading environment of N assets based on historical data of the SP500
+    A simple trading environment of based on historical data of the SP500
 
     """
     def __init__(
@@ -20,7 +20,7 @@ class TradingEnvironment(gym.Env):
             transaction_cost: float = 0.0001,   # transaction cost as a percentage of the transaction value
             hind_sight: int = 252,              # number of previous time steps to include in the observation
             maximal_time: int = 2520,           # maximum number of time steps in the environment (10 years of trading days)
-            data_file: str = 'data.csv'         # file containing the prices of the assets
+            data_file: str = 'data/data.csv'    # file containing the prices of the assets
             ):
         super(TradingEnvironment, self).__init__()
         np.set_printoptions(suppress=True)
@@ -49,6 +49,42 @@ class TradingEnvironment(gym.Env):
 
         self.reset()
 
+    @property
+    def net_return(self) -> float:
+        """
+        Returns the net return of the portfolio
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        float
+            the net return of the portfolio
+
+        """
+
+        return self.__current_portfolio_value / self.__initial_capital - 1
+    
+    @property
+    def risk(self) -> float:
+        """
+        Returns the risk of the portfolio
+
+        Parameters
+        ----------
+        None
+
+        Returns
+        -------
+        float
+            the risk of the portfolio
+
+        """
+
+        return np.std(self.__portfolio_returns)
+    
     def __set_action_space(self):
         """
         Sets the action space of the environment
@@ -208,6 +244,7 @@ class TradingEnvironment(gym.Env):
         print("Sharpe\t: {}".format(sharpe_ratio))
         print("Max DD\t: {}".format(maximum_drawdown))
         print("VaR\t: {}".format(value_at_risk))
+        print("Cumulative reward: {}".format(self.__cumulative_rewards))
         print("")
 
     def __render_plot(self):
@@ -298,7 +335,8 @@ class TradingEnvironment(gym.Env):
         done = (self.__current_time == self.__maximal_time - 1)
         
         statistics = self.__asset_statistics()
-        reward = net_return - 0.5 * np.dot(np.dot(action, statistics["covariance_matrix"]), action)
+        reward = net_return - (0.5 * np.dot(np.dot(action, statistics["covariance_matrix"]), action)) / np.sqrt(self.__hind_sight)
+        self.__cumulative_rewards += reward
 
         info = {
             "return": round(net_return, 4),
@@ -330,6 +368,7 @@ class TradingEnvironment(gym.Env):
         self.__portfolio_returns = [0]
         self.__portfolio_values = [self.__initial_capital]
         self.__sample_assets()
+        self.__cumulative_rewards = 0
         
         return self.state()
         
@@ -402,13 +441,13 @@ class TradingEnvironment(gym.Env):
             return pickle.load(f)
         
 
-# env = TradingEnvironment()
-# while True:
-#     action = np.array([0.2, 0.2, 0.2, 0.2, 0.2])
-#     next_state, reward, done, info = env.step(action)
-#     print(info)
-#     if done:
-#         break
+env = TradingEnvironment()
+while True:
+    action = np.array([0.2, 0.2, 0.2, 0.2, 0.2])
+    next_state, reward, done, info = env.step(action)
+    print(info)
+    if done:
+        break
 
-# env.render(mode='terminal')
-# env.render(mode='plot')
+env.render(mode='terminal')
+env.render(mode='plot')

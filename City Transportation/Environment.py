@@ -308,22 +308,6 @@ class CityEnv(gym.Env):
         self.__bus_location = destination
 
         return travel_time
-    
-    def _calculate_episode_performance(self) -> float:
-        """
-        Calculates the performance of the agent over the course of the episode
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        float
-            The performance of the agent over the course of the episode (Average waiting time)
-
-        """
-        return -1 * (self.__total_waiting_time / self.__served_passengers)
 
     def state(self) -> np.ndarray:
         """
@@ -341,7 +325,6 @@ class CityEnv(gym.Env):
         
         """
         
-
         passengers_waiting = self.__current_demand.flatten()
         passengers_on_bus = np.zeros(self.__num_locations)
         for passenger in self.__bus_passengers:
@@ -378,7 +361,7 @@ class CityEnv(gym.Env):
         """
 
         # Drive the bus to the desired location
-        self.__drive_bus_to(action)
+        travel_time = self.__drive_bus_to(action)
         num_dropped_off = self.__drop_off_passengers()
         num_picked_up = self.__pick_up_passengers()
 
@@ -389,11 +372,11 @@ class CityEnv(gym.Env):
         observation = self.state()
 
         # Generate reward
-        reward = num_dropped_off
+        reward = self.__total_waiting_time / self.__served_passengers if done else 0
 
         # Generate info dictionary
         info = {
-            'current_time': self.__current_time,
+            'journey_duration': travel_time,
             'stopped at': action,
             'passengers_dropped_off': num_dropped_off,
             'passengers_picked_up': num_picked_up,

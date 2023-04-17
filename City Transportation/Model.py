@@ -46,7 +46,7 @@ class BusDriver:
             n_actions: int = 10,
             max_mem_size: int = 100000, 
             eps_end: float = 0.05, 
-            eps_dec: float = 1e-5
+            eps_dec: float = 5e-6
             ):
         self.gamma = gamma
         self.epsilon = epsilon
