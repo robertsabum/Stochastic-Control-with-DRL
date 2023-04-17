@@ -478,15 +478,3 @@ class CityEnv(gym.Env):
         """
         with open(path, 'rb') as f:
             return pickle.load(f)
-
-# env = CityEnv()
-
-# while True:
-#     action = random.randint(0, 9)
-#     observation, reward, done, info = env.step(action)
-#     print(reward, info)
-
-#     if done:
-#         break
-
-# env.render()
