@@ -6,7 +6,6 @@ import numpy as np
 from numpy.random import Generator, PCG64
 import matplotlib.pyplot as plt
 import pandas as pd
-import yfinance as yf
 
 class TradingEnvironment(gym.Env):
     """
@@ -439,15 +438,3 @@ class TradingEnvironment(gym.Env):
         """
         with open(path, 'rb') as f:
             return pickle.load(f)
-        
-
-env = TradingEnvironment()
-while True:
-    action = np.array([0.2, 0.2, 0.2, 0.2, 0.2])
-    next_state, reward, done, info = env.step(action)
-    print(info)
-    if done:
-        break
-
-env.render(mode='terminal')
-env.render(mode='plot')
