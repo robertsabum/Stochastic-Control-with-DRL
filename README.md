@@ -1,8 +1,8 @@
 # Stochastic Control with Deep Reinforcement Learning
 
 This repository contains the code used for the research project "Stochastic Control with Deep Reinforcement Learning." 
-The paper explores the use of Deep Reinforcement Learning for solving stochastic control problems, which arise 
-in many including finance, engineering, and robotics.
+The project explores the use of Deep Reinforcement Learning for solving stochastic control problems, which arise 
+in many fields including finance, engineering, and robotics.
 
 ## Reinforcement Learning
 
@@ -29,6 +29,5 @@ to possible locations the bus may drive to.
 #### Asset Portfolio Construction
 
 The second problem we explore is asset portfolio construction, which is the process of selecting a optimal weights for a portfolio 
-of assets that maximizes returns while minimizing risk. Given that the action space is continuous, we implemented a 
-Deep Deterministic Polict Gradient (DDPG) model to learn the optimal policy to select asset weights based on observed historical statistical 
-measures of each asset.
+of assets that maximizes returns while minimizing risk. Here, we used a Deep Deterministic Polict Gradient (DDPG) model to learn 
+the optimal policy to select asset weights based on observed statistical measures of each asset.
